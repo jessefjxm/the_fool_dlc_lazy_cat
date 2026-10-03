@@ -35,6 +35,23 @@
     var SlotContext = Java.loadClass('top.theillusivec4.curios.api.SlotContext')
     var CuriosApi = Java.loadClass('top.theillusivec4.curios.api.CuriosApi')
 
+    /*
+     * 模组 capability 入口，用于把记录同步给客户端 UI。
+     * 放在运行时解析：加载期任何 loadClass 抛错都会让 KubeJS
+     * 丢弃整份脚本，所以统一用 loadClass 包一层。
+     */
+    function loadClass(name) {
+        try {
+            return Java.loadClass(name)
+        } catch (e) {
+            console.error('[献祭之猫] 加载类失败：' + name + '，错误：' + e)
+            return null
+        }
+    }
+
+    var PlayerDataCapability = loadClass('com.kurome.ageofmythology.capability.PlayerDataCapability')
+    var CapabilityUtil = loadClass('com.kurome.ageofmythology.utils.CapabilityUtil')
+
     var MOD_ID = 'ageofmythology'
     var SLOT_ID = 'skull'
 
@@ -151,11 +168,40 @@
         player.setNbt(playerNbt)
 
         /*
+         * 把新记录同步给客户端，让 UI 立即刷新
+         */
+        syncCapability(player)
+
+        /*
          * 提示玩家
          */
         var itemName = getItemName(itemId)
         var message = Component.literal('§a[献祭之猫] §7发现新的遗物 §8» §f').append(itemName).append(Component.literal(' §8[' + itemId + ']'))
         player.tell(message)
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * 把 capability 同步给客户端
+     *
+     * 为什么需要：
+     *   模组的 UI / 属性只在它自己的 tick 与 sync 时机读内存态，
+     *   而内存态里对应的记录只在 deserializeNBT 时才跟着 NBT 更新，
+     *   所以纯 NBT 写入之后客户端数据包仍是旧的，
+     *   表现就是道具说明文本不刷新。
+     *
+     * 时机：
+     *   必须放在 player.setNbt(...) 之后 —— setNbt 会触发
+     *   deserializeNBT，把 NBT 灌回内存态，此时 sync 才有内容可发。
+     * ------------------------------------------------------------
+     */
+    function syncCapability(player) {
+        try {
+            var data = CapabilityUtil.getCapability(player, PlayerDataCapability.INSTANCE)
+            if (data !== null) data.sync(player)
+        } catch (e) {
+            console.error('[献祭之猫] 同步 capability 失败（NBT 已写入，功能不受影响）：' + e)
+        }
     }
 
     /*

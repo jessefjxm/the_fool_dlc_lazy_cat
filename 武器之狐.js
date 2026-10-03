@@ -67,6 +67,23 @@
     var TridentItem = Java.loadClass('net.minecraft.world.item.TridentItem')
     var ArmorItem = Java.loadClass('net.minecraft.world.item.ArmorItem')
 
+    /*
+     * 模组 capability 入口，用于把记录同步给客户端 UI。
+     * 用 loadClass 包一层：加载期任何 loadClass 抛错都会让
+     * KubeJS 丢弃整份脚本。
+     */
+    function loadClass(name) {
+        try {
+            return Java.loadClass(name)
+        } catch (e) {
+            console.error('[武器之狐] 加载类失败：' + name + '，错误：' + e)
+            return null
+        }
+    }
+
+    var PlayerDataCapability = loadClass('com.kurome.ageofmythology.capability.PlayerDataCapability')
+    var CapabilityUtil = loadClass('com.kurome.ageofmythology.utils.CapabilityUtil')
+
     var TRAVELLER_CAP = 'ageofmythology:traveller'
     var RECORD_LIST = 'nbt_has_used_weapon'
 
@@ -584,6 +601,14 @@
             playerNbt.put('ForgeCaps', forgeCaps)
             player.setNbt(playerNbt)
 
+            /*
+             * 把新记录同步给客户端，让 UI 立即刷新。
+             *
+             * 必须放在 setNbt 之后：setNbt 会触发 deserializeNBT，
+             * 把 NBT 灌回内存态，此时 sync 才有内容可发。
+             */
+            syncCapability(player)
+
             var name = getItemName(item)
             var message = Component.literal('§a[武器之狐] §7发现新的装备 §8» §f').append(name).append(Component.literal(' §8[' + itemId + ']'))
 
@@ -591,6 +616,23 @@
             console.info('[武器之狐] ★ 发现新的装备：' + itemId)
         } catch (e) {
             console.error('[武器之狐] 更新玩家 ForgeCaps 失败：' + e)
+        }
+    }
+
+    /*
+     * ============================================================
+     * 把 capability 同步给客户端
+     *
+     * 模组的 UI / 属性只读内存态，且只在自身 tick 与 sync
+     * 时机刷新；纯 NBT 写入后客户端数据包仍是旧的。
+     * ============================================================
+     */
+    function syncCapability(player) {
+        try {
+            var data = CapabilityUtil.getCapability(player, PlayerDataCapability.INSTANCE)
+            if (data !== null) data.sync(player)
+        } catch (e) {
+            console.error('[武器之狐] 同步 capability 失败（NBT 已写入，功能不受影响）：' + e)
         }
     }
 

@@ -42,6 +42,23 @@
     var ListTag = Java.loadClass('net.minecraft.nbt.ListTag')
 
     /*
+     * 模组 capability 入口，用于把记录同步给客户端 UI。
+     * 用 loadClass 包一层：加载期任何 loadClass 抛错都会让
+     * KubeJS 丢弃整份脚本。
+     */
+    function loadClass(name) {
+        try {
+            return Java.loadClass(name)
+        } catch (e) {
+            console.error('[贪食之狐] 加载类失败：' + name + '，错误：' + e)
+            return null
+        }
+    }
+
+    var PlayerDataCapability = loadClass('com.kurome.ageofmythology.capability.PlayerDataCapability')
+    var CapabilityUtil = loadClass('com.kurome.ageofmythology.utils.CapabilityUtil')
+
+    /*
      * ------------------------------------------------------------
      * 常量
      * ------------------------------------------------------------
@@ -237,6 +254,14 @@
         player.setNbt(playerNbt)
 
         /*
+         * 把新记录同步给客户端，让 UI 立即刷新。
+         *
+         * 必须放在 setNbt 之后：setNbt 会触发 deserializeNBT，
+         * 把 NBT 灌回内存态，此时 sync 才有内容可发。
+         */
+        syncCapability(player)
+
+        /*
          * 提示玩家。
          */
         var blockName = getBlockName(blockId)
@@ -244,6 +269,23 @@
         player.tell(message)
 
         console.log('[贪食之狐] 玩家 ' + String(player.username) + ' 发现矿物：' + blockId + '，desc=' + desc)
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * 把 capability 同步给客户端
+     *
+     * 模组的 UI / 属性只读内存态，且只在自身 tick 与 sync
+     * 时机刷新；纯 NBT 写入后客户端数据包仍是旧的。
+     * ------------------------------------------------------------
+     */
+    function syncCapability(player) {
+        try {
+            var data = CapabilityUtil.getCapability(player, PlayerDataCapability.INSTANCE)
+            if (data !== null) data.sync(player)
+        } catch (e) {
+            console.error('[贪食之狐] 同步 capability 失败（NBT 已写入，功能不受影响）：' + e)
+        }
     }
 
     /*

@@ -25,8 +25,10 @@
  *   ]
  *
  * 注意：
- *   不使用 Ingredient.getItems()。
- *   直接解析 Create 配方 JSON，兼容 KubeJS 2001.6.5-build.16。
+ *   数据源是原版 RecipeManager（在 ServerEvents.loaded 里读），
+ *   不再解析 KubeJS 配方事件 —— 该事件在新存档首次进入时不触发。
+ *   Ingredient.getItems() 在本环境缺失，取物品时用
+ *   Ingredient.test + 注册表枚举兜底，见 ingredientItemIds()。
  *
  * ============================================================
  */
@@ -35,8 +37,23 @@
     var CompoundTag = Java.loadClass('net.minecraft.nbt.CompoundTag')
     var ListTag = Java.loadClass('net.minecraft.nbt.ListTag')
     var BuiltInRegistries = Java.loadClass('net.minecraft.core.registries.BuiltInRegistries')
-    var ResourceLocation = Java.loadClass('net.minecraft.resources.ResourceLocation')
-    var TagKey = Java.loadClass('net.minecraft.tags.TagKey')
+
+    /*
+     * 模组 capability 入口，用于把记录同步给客户端 UI。
+     * 用 loadClass 包一层：加载期任何 loadClass 抛错都会让
+     * KubeJS 丢弃整份脚本。
+     */
+    function loadClass(name) {
+        try {
+            return Java.loadClass(name)
+        } catch (e) {
+            console.error('[共振之狐] 加载类失败：' + name + '，错误：' + e)
+            return null
+        }
+    }
+
+    var PlayerDataCapability = loadClass('com.kurome.ageofmythology.capability.PlayerDataCapability')
+    var CapabilityUtil = loadClass('com.kurome.ageofmythology.utils.CapabilityUtil')
 
     var TRAVELLER_CAP = 'ageofmythology:traveller'
     var RECORD_LIST = 'nbt_resonance_fox_item'
@@ -62,88 +79,64 @@
 
     /*
      * ============================================================
-     * 展开 Minecraft Item Tag
+     * 取出一个 Ingredient 覆盖的全部物品 id
      *
-     * 例如：
-     *   create:stone_types/crimsite
-     *
-     * 自动转换成：
-     *   create:crimsite
-     *   create:cut_crimsite
-     *   create:crimsite_pillar
-     *   ...
-     *
-     * 不能使用 Ingredient.getItems()，因此直接从
-     * BuiltInRegistries.ITEM 获取 Tag 成员。
+     * 优先用原版 Ingredient.getItems()（Tag 会被展开）。
+     * 但实测本环境下 KubeJS 的 Ingredient 包装对象**没有** getItems
+     * （报错：Cannot find function getItems in object ...Ingredient），
+     * 所以必须有兜底：遍历物品注册表，用 Ingredient.test 逐一试探。
+     * 扫描只在服务器加载时跑一次（本包 Create 相关配方约 200 条），
+     * 开销可以接受。
      * ============================================================
      */
-    function expandItemTag(tagId, source) {
-        try {
-            if (!tagId) return 0
-            tagId = String(tagId)
-            var resourceLocation = ResourceLocation.parse(tagId)
-            var tagKey = TagKey.create(BuiltInRegistries.ITEM.key(), resourceLocation)
-            var optionalTag = BuiltInRegistries.ITEM.getTag(tagKey)
-            if (optionalTag === null || !optionalTag.isPresent()) {
-                console.info('[共振之狐] 找不到 Item Tag：' + tagId + ' ← ' + source)
-                return 0
+    var fallbackItemIds = null
+
+    function allItemIds() {
+        if (fallbackItemIds !== null) return fallbackItemIds
+        var list = []
+        var keys = BuiltInRegistries.ITEM.keySet().toArray()
+        for (var i = 0; i < keys.length; i++) {
+            try {
+                list.push(String(keys[i]))
+            } catch (e) {
+                console.error('[共振之狐] 收集物品 id 失败：' + e)
             }
-            var holders = optionalTag.get()
-            var iterator = holders.iterator()
-            var newCount = 0
-            while (iterator.hasNext()) {
-                try {
-                    var holder = iterator.next()
-                    if (holder === null) continue
-                    var item = holder.value()
-                    if (item === null) continue
-                    var itemId = String(BuiltInRegistries.ITEM.getKey(item).toString())
-                    if (addProcessingItem(itemId, source + ' [tag:' + tagId + ']')) newCount++
-                } catch (e) {
-                    console.error('[共振之狐] 读取 Item Tag 成员失败：' + e)
-                }
-            }
-            console.info('[共振之狐] Tag 展开完成：' + tagId + ' → 新增 ' + newCount + ' 个物品')
-            return newCount
-        } catch (e) {
-            console.error('[共振之狐] 展开 Item Tag 失败：' + tagId + '：' + e)
-            return 0
         }
+        list.sort()
+        fallbackItemIds = list
+        return list
     }
 
-    /*
-     * ============================================================
-     * 解析 Create 配方 Ingredient
-     *
-     * 支持：
-     *   {"item":"minecraft:cobblestone"}
-     *   {"tag":"minecraft:logs"}
-     *   {"items":[...]}
-     *   {"ingredient":{...}}
-     * ============================================================
-     */
-    function parseIngredientJson(ingredientJson, source) {
-        if (ingredientJson === null || ingredientJson === undefined) return 0
-        var count = 0
+    function ingredientItemIds(ingredient) {
+        var ids = []
         try {
-            if (ingredientJson.has('item')) {
-                if (addProcessingItem(ingredientJson.get('item').getAsString(), source)) count++
-                return count
+            var stacks = ingredient.getItems()
+            for (var i = 0; i < stacks.length; i++) {
+                try {
+                    var stack = stacks[i]
+                    if (stack === null || stack.isEmpty()) continue
+                    ids.push(String(BuiltInRegistries.ITEM.getKey(stack.getItem())))
+                } catch (e) {
+                    console.error('[共振之狐] 读取 Ingredient 物品失败：' + e)
+                }
             }
-            if (ingredientJson.has('tag')) {
-                return expandItemTag(ingredientJson.get('tag').getAsString(), source)
-            }
-            if (ingredientJson.has('items')) {
-                var items = ingredientJson.get('items')
-                if (items.isJsonArray()) for (var i = 0; i < items.size(); i++) count += parseIngredientJson(items.get(i), source)
-                return count
-            }
-            if (ingredientJson.has('ingredient')) return parseIngredientJson(ingredientJson.get('ingredient'), source)
-            console.info('[共振之狐] 未识别 Ingredient：' + ingredientJson.toString() + ' ← ' + source)
-        } catch (e) {
-            console.error('[共振之狐] 解析 Ingredient 失败：' + e + ' ← ' + source)
+            return ids
+        } catch (e2) {
+            /*
+             * getItems 不存在：枚举注册表反推。
+             * Ingredient.test(ItemStack) 才是权威判定，
+             * Tag 与 NBT 条件都会被它正确处理。
+             */
         }
-        return count
+        var all = allItemIds()
+        for (var k = 0; k < all.length; k++) {
+            try {
+                if (ingredient.test(Item.of(all[k]))) ids.push(all[k])
+            } catch (e3) {
+                /* 单个物品试探失败就跳过 */
+            }
+        }
+        return ids
     }
 
     /*
@@ -155,32 +148,57 @@
      *   create:crushing
      *
      * 两种配方统一记录到 crushingItems。
+     *
+     * 数据源用原版 RecipeManager，而不是 KubeJS 的
+     * ServerEvents.recipes 事件 —— 实测：
+     *   /reload          该事件会触发（能扫到全量配方）
+     *   重新进入存档      该事件会触发
+     *   新存档首次进入    该事件不触发（脚本注册错过窗口），
+     *                     而 ServerEvents.loaded 稳定触发，
+     *                     此时 getRecipeManager() 已有全部配方。
+     *
+     * Create 的 ProcessingRecipe 实现原版 Recipe 接口，
+     * getIngredients() 返回的就是它的 Ingredient 列表，
+     * 比从 JSON 重建更可靠（Tag / NBT 条件都由原版处理）。
      * ============================================================
      */
-    function scanRecipes(event) {
-        event.forEachRecipe({}, function (recipe) {
+    function scanRecipes(recipeManager) {
+        var recipes = recipeManager.getRecipes()
+        var iterator = recipes.iterator()
+
+        while (iterator.hasNext()) {
             try {
-                var json = recipe.json
-                if (json === null || json === undefined || !json.has('type')) return
-                var type = String(json.get('type').getAsString())
-                if (!RECIPE_TYPES[type]) return
+                var recipe = iterator.next()
+                var type = String(recipe.getType())
+                if (!RECIPE_TYPES[type]) continue
 
                 var recipeId = String(recipe.getId())
                 if (type === 'create:milling') millingCount++
                 else if (type === 'create:crushing') crushingCount++
 
-                if (!json.has('ingredients')) return
-                var ingredients = json.get('ingredients')
-                if (!ingredients.isJsonArray()) return
+                var ingredients = recipe.getIngredients()
+                if (ingredients === null || ingredients.isEmpty()) continue
 
                 for (var i = 0; i < ingredients.size(); i++) {
-                    ingredientCount++
-                    parseIngredientJson(ingredients.get(i), recipeId)
+                    try {
+                        ingredientCount++
+
+                        /*
+                         * 取该 Ingredient 覆盖的物品 id：
+                         * 优先 getItems()，缺失时用注册表 + test 反推。
+                         */
+                        var ids = ingredientItemIds(ingredients.get(i))
+                        for (var k = 0; k < ids.length; k++) {
+                            addProcessingItem(ids[k], recipeId)
+                        }
+                    } catch (e) {
+                        console.error('[共振之狐] 解析 Ingredient #' + i + ' 失败：' + e + ' ← ' + recipeId)
+                    }
                 }
             } catch (e) {
                 console.error('[共振之狐] 扫描 Recipe 失败：' + e)
             }
-        })
+        }
 
         var totalItems = 0
         for (var id in crushingItems) if (crushingItems[id]) totalItems++
@@ -303,6 +321,14 @@
             playerNbt.put('ForgeCaps', forgeCaps)
             player.setNbt(playerNbt)
 
+            /*
+             * 把新记录同步给客户端，让 UI 立即刷新。
+             *
+             * 必须放在 setNbt 之后：setNbt 会触发 deserializeNBT，
+             * 把 NBT 灌回内存态，此时 sync 才有内容可发。
+             */
+            syncCapability(player)
+
             var name = getItemName(item)
             var message = Component.literal('§a[共振之狐] §7发现新的加工原料 §8» §f').append(name).append(Component.literal(' §8[' + itemId + ']'))
             player.tell(message)
@@ -315,14 +341,46 @@
 
     /*
      * ============================================================
-     * 服务器加载配方后扫描：
-     *   create:milling
-     *   create:crushing
+     * 把 capability 同步给客户端
+     *
+     * 模组的 UI / 属性只读内存态，且只在自身 tick 与 sync
+     * 时机刷新；纯 NBT 写入后客户端数据包仍是旧的。
      * ============================================================
      */
-    ServerEvents.recipes(function (event) {
-        scanRecipes(event)
-    })
+    function syncCapability(player) {
+        try {
+            var data = CapabilityUtil.getCapability(player, PlayerDataCapability.INSTANCE)
+            if (data !== null) data.sync(player)
+        } catch (e) {
+            console.error('[共振之狐] 同步 capability 失败（NBT 已写入，功能不受影响）：' + e)
+        }
+    }
+
+    /*
+     * ============================================================
+     * 注册事件
+     *
+     * 只用 ServerEvents.loaded：
+     *   实测 ServerEvents.recipes 在新存档首次进入时不触发，
+     *   afterRecipes 在当前版本根本不触发，
+     *   只有 loaded 在「reload / 重新进入 / 开新档」三种情况下都触发，
+     *   且此时 RecipeManager 已装载完毕（实测 12631 条）。
+     *
+     * 用 try 包住：万一该事件在当前 KubeJS 版本里不可用，
+     * 也只损失扫描功能，不会让整份脚本加载失败。
+     * ============================================================
+     */
+    try {
+        ServerEvents.loaded(function (event) {
+            try {
+                scanRecipes(event.server.getRecipeManager())
+            } catch (e) {
+                console.error('[共振之狐] 扫描配方失败：' + e)
+            }
+        })
+    } catch (e) {
+        console.error('[共振之狐] 注册 ServerEvents.loaded 失败（配方扫描将不可用）：' + e)
+    }
 
     /*
      * ============================================================

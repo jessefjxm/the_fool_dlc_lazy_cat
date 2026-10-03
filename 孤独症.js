@@ -25,17 +25,25 @@
  *   nbt_listened_discs0、nbt_listened_discs1……表示具体记录。
  *
  * 生物群系记录格式：
- *   perform:biome.<biome_id>
+ *   perform:biome.<命名空间>.<路径>
  *
  * 唱片记录格式：
- *   listen:item.<item_id>
+ *   listen:item.<命名空间>.<路径>
+ *
+ * 注意：
+ *   整条记录里只有一个冒号（listen: / perform: 后面那个），
+ *   命名空间与路径之间的冒号要换成点，
+ *   例如 minecraft:music_disc_13 -> item.minecraft.music_disc_13。
  *
  * 例如：
  *   minecraft:forest
  *       → perform:biome.minecraft.forest
  *
- *   minecraft:music_disc_13
- *       → listen:item.minecraft:music_disc_13
+ *   minecraft:music_disc_far
+ *       → listen:item.minecraft.music_disc_far
+ *
+ *   alexscaves:music_disc_tasty
+ *       → listen:item.alexscaves.music_disc_tasty
  *
  * 注意：
  *   这里不能使用标准 ListTag，因为 Age of Mythology 的数据结构
@@ -51,6 +59,34 @@
     var RECORD_PREFIX = 'nbt_listened_discs'
     var RECORD_SIZE = 'nbt_listened_discs_size'
     var lastBiome = {}
+
+    /*
+     * ============================================================
+     * 模组 capability 入口，用于把记录同步给客户端 UI
+     *
+     * 为什么必须有这一步：
+     *   孤独症道具的说明文本读的是**客户端** capability
+     *   （AutismSkullItem 里 data.getListenedDisc()），
+     *   而客户端那份只能靠 ClientSyncPlayerDataCapability 数据包刷新。
+     *   模组自己记录时会主动 data.sync(...)，
+     *   我们只写 NBT、不发包，UI 就要等到重新登录（登录时会 sync）
+     *   才更新 —— 表现就是「第一次能刷新，之后一分钟都不动」。
+     *
+     * 用 loadClass 包一层：加载期任何 loadClass 抛错都会让
+     * KubeJS 丢弃整份脚本。
+     * ============================================================
+     */
+    function loadClass(name) {
+        try {
+            return Java.loadClass(name)
+        } catch (e) {
+            console.error('[孤独症] 加载类失败：' + name + '，错误：' + e)
+            return null
+        }
+    }
+
+    var PlayerDataCapability = loadClass('com.kurome.ageofmythology.capability.PlayerDataCapability')
+    var CapabilityUtil = loadClass('com.kurome.ageofmythology.utils.CapabilityUtil')
 
     /*
      * ============================================================
@@ -73,6 +109,31 @@
         data.forgeCaps.put(TRAVELLER_CAP, data.traveller)
         data.playerNbt.put('ForgeCaps', data.forgeCaps)
         player.setNbt(data.playerNbt)
+
+        /*
+         * 把 capability 同步给客户端，让道具文本立即刷新。
+         *
+         * 必须放在 setNbt 之后：setNbt 会触发 deserializeNBT，
+         * 把 NBT 灌回内存态，此时 sync 才有内容可发。
+         */
+        syncCapability(player)
+    }
+
+    /*
+     * ============================================================
+     * 把 capability 同步给客户端
+     *
+     * 模组的 UI / 属性只读内存态，且只在自身 tick 与 sync
+     * 时机刷新；纯 NBT 写入后客户端数据包仍是旧的。
+     * ============================================================
+     */
+    function syncCapability(player) {
+        try {
+            var data = CapabilityUtil.getCapability(player, PlayerDataCapability.INSTANCE)
+            if (data !== null) data.sync(player)
+        } catch (e) {
+            console.error('[孤独症] 同步 capability 失败（NBT 已写入，功能不受影响）：' + e)
+        }
     }
 
     /*
@@ -229,7 +290,7 @@
      * 处理玩家获得唱片
      *
      * 记录：
-     *   listen:item.<item_id>
+     *   listen:item.<命名空间>.<路径>
      *
      * 提示：
      *   [孤独症] 发现新的唱片 » <本地化名称> [item_id]
@@ -239,7 +300,13 @@
         if (!isMusicDisc(item)) return
 
         var itemId = String(item.getId())
-        var value = 'listen:item.' + itemId
+        /*
+         * 记录格式为 listen:item.<命名空间>.<路径>：
+         * 只有 listen 与 item 之间那一个冒号，
+         * 命名空间与路径之间的冒号要换成点，
+         * 即 listen:item.minecraft.music_disc_far。
+         */
+        var value = 'listen:item.' + itemId.replace(':', '.')
         if (!addRecord(player, value)) return
 
         var name = getDiscName(item)
@@ -269,7 +336,7 @@
      * 处理玩家进入新的生物群系
      *
      * 记录：
-     *   perform:biome.<biome_id>
+     *   perform:biome.<命名空间>.<路径>
      *
      * 提示：
      *   [孤独症] 发现新的生物群系 » <本地化名称> [biome_id]
@@ -283,7 +350,11 @@
 
         lastBiome[playerName] = biomeId
 
-        var value = 'perform:biome.' + biomeId
+        /*
+         * 记录格式为 perform:biome.<命名空间>.<路径>：
+         * 同样只保留 perform 与 biome 之间那一个冒号。
+         */
+        var value = 'perform:biome.' + biomeId.replace(':', '.')
         if (!addRecord(player, value)) return
 
         var name = getBiomeName(biomeId)

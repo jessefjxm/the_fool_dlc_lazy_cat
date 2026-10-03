@@ -73,7 +73,6 @@
         itemId = String(itemId)
         if (itemId === '' || crushingItems[itemId]) return false
         crushingItems[itemId] = true
-        console.info('[共振之狐] 已记录加工原料：' + itemId + (source ? ' ← ' + source : ''))
         return true
     }
 
@@ -306,8 +305,6 @@
         var itemId = String(item.getId())
         if (!isProcessingIngredient(itemId)) return
 
-        console.info('[共振之狐] ★ 发现 Create 加工原料：' + itemId)
-
         try {
             var playerNbt = player.getNbt()
             var forgeCaps = playerNbt.contains('ForgeCaps', 10) ? playerNbt.getCompound('ForgeCaps') : new CompoundTag()
@@ -332,8 +329,6 @@
             var name = getItemName(item)
             var message = Component.literal('§a[共振之狐] §7发现新的加工原料 §8» §f').append(name).append(Component.literal(' §8[' + itemId + ']'))
             player.tell(message)
-
-            console.info('[共振之狐] 已新增记录：' + itemId)
         } catch (e) {
             console.error('[共振之狐] 更新玩家 ForgeCaps 失败：' + e)
         }

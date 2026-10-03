@@ -166,8 +166,6 @@
      * ============================================================
      */
     function scanRecipes(recipeManager) {
-        console.info('[血鸣之狐] 开始扫描全部配方，寻找营火配方。')
-
         var recipeCount = 0
         var campfireCount = 0
         var ingredientCount = 0
@@ -183,8 +181,6 @@
                 if (String(recipe.getType()) !== CAMPFIRE_TYPE) continue
 
                 campfireCount++
-                var recipeId = String(recipe.getId())
-                console.info('[血鸣之狐] 找到营火配方：' + recipeId)
 
                 /*
                  * 原版 AbstractCookingRecipe.getIngredients() 返回
@@ -192,10 +188,7 @@
                  * 比从 JSON 重建更精确（NBT 条件不会丢）。
                  */
                 var ingredients = recipe.getIngredients()
-                if (ingredients === null || ingredients.isEmpty()) {
-                    console.info('[血鸣之狐] 营火配方没有 ingredient：' + recipeId)
-                    continue
-                }
+                if (ingredients === null || ingredients.isEmpty()) continue
 
                 for (var i = 0; i < ingredients.size(); i++) {
                     try {
@@ -212,7 +205,6 @@
                         ingredientSignatures[signature] = true
                         campfireIngredients.push(ingredient)
                         ingredientCount++
-                        console.info('[血鸣之狐] 已记录营火 Ingredient：' + recipeId + ' #' + i)
                     } catch (e) {
                         console.error('[血鸣之狐] 解析营火 Ingredient #' + i + ' 失败：' + e)
                     }
@@ -222,9 +214,7 @@
             }
         }
 
-        console.info('[血鸣之狐] 全部配方扫描完成：' + recipeCount + ' 个。')
-        console.info('[血鸣之狐] 找到营火配方：' + campfireCount + ' 个。')
-        console.info('[血鸣之狐] 找到营火 Ingredient：' + ingredientCount + ' 个。')
+        console.info('[血鸣之狐] 配方扫描完成：全部 ' + recipeCount + ' 个，营火 ' + campfireCount + ' 个，营火原料 ' + ingredientCount + ' 个。')
     }
 
     /*
@@ -333,14 +323,10 @@
 
         var itemId = String(item.getId())
 
-        console.info('[血鸣之狐] 检测获得物品：' + itemId)
-
         /*
          * 判断该物品是否符合任意营火配方 Ingredient。
          */
         if (!isCampfireIngredient(item)) return
-
-        console.info('[血鸣之狐] 发现营火原料：' + itemId)
 
         /*
          * ========================================================
@@ -391,8 +377,6 @@
         var itemName = getItemName(item)
         var message = Component.literal('§a[血鸣之狐] §7发现新的营火原料 §8» §f').append(itemName).append(Component.literal(' §8[' + itemId + ']'))
         player.tell(message)
-
-        console.info('[血鸣之狐] 已记录营火原料：' + itemId)
     }
 
     /*

@@ -142,12 +142,6 @@
     var tagSetCache = {}
 
     /*
-     * 调试开关：排查时改成 true，
-     * 会打印每次死亡的 ID、命中学派、击杀者与卡住的步骤。
-     */
-    var DEBUG = false
-
-    /*
      * ------------------------------------------------------------
      * 标签 id -> TagKey<EntityType<?>>
      * ------------------------------------------------------------
@@ -361,17 +355,12 @@
          */
         try {
             var data = CapabilityUtil.getCapability(player, PlayerDataCapability.INSTANCE)
-            if (data === null) {
-                if (DEBUG) console.log('[元素之猫·调试] 取不到 capability，仅写 NBT')
-                return true
-            }
+            if (data === null) return true
             data.getExtraInfo().affinity_map.put(BuiltInRegistries.ENTITY_TYPE.get(ResourceLocation.parse(entityId)), FIXED_VALUE)
-            if (DEBUG) console.log('[元素之猫·调试] 内存态条数=' + data.getExtraInfo().affinity_map.size())
             /*
              * sync 会重发 capability 数据包，让客户端 UI 立即刷新。
              */
             data.sync(player)
-            if (DEBUG) console.log('[元素之猫·调试] 已调用 sync')
         } catch (e) {
             console.error('[元素之猫] 同步 capability 失败（NBT 已写入，功能不受影响）：' + e)
         }
@@ -396,24 +385,18 @@
         if (wrapper === null) return
 
         var entityId = toEntityId(wrapper)
-        if (DEBUG) console.log('[元素之猫·调试] 注册表 ID=' + entityId)
         if (entityId === null) {
             console.error('[元素之猫] 无法取得实体注册表 ID，类型=' + String(wrapper))
             return
         }
 
         var affinity = resolveAffinity(entityId)
-        if (DEBUG) console.log('[元素之猫·调试] ' + entityId + ' 命中=' + affinity)
         if (affinity === null) return
 
         var player = resolveKiller(source, entity)
-        if (DEBUG) console.log('[元素之猫·调试] 击杀者=' + (player === null ? 'null' : String(player.username)))
         if (player === null) return
 
-        if (!recordAffinity(player, entityId)) {
-            if (DEBUG) console.log('[元素之猫·调试] NBT 中已存在 ' + entityId + '，跳过')
-            return
-        }
+        if (!recordAffinity(player, entityId)) return
 
         var message = Component.literal('§a[元素之猫] §7记录' + affinity + '生物 §8» §f').append(getEntityName(entityId)).append(Component.literal(' §8[' + entityId + ']'))
         player.tell(message)
@@ -428,7 +411,6 @@
      */
     EntityEvents.death(function (event) {
         try {
-            if (DEBUG) console.log('[元素之猫·调试] death 事件触发')
             var entity = event.getEntity()
             if (entity === null) return
             handleDeath(entity, event.getSource())
@@ -436,6 +418,4 @@
             console.error('[元素之猫] 处理死亡事件失败：' + e)
         }
     })
-
-    console.log('[元素之猫] 已加载：三系标签=' + AFFINITY_TAGS.length + ' 个，调试=' + DEBUG)
 })()

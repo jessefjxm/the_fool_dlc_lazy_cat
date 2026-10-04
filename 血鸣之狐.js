@@ -398,29 +398,89 @@
 
     /*
      * ============================================================
-     * 注册事件
+     * 配方扫描调度
      *
-     * 只用 ServerEvents.loaded：
-     *   实测 ServerEvents.recipes 在新存档首次进入时不触发，
-     *   afterRecipes 在当前版本根本不触发，
-     *   只有 loaded 在「reload / 重新进入 / 开新档」三种情况下都触发，
-     *   且此时 RecipeManager 已装载完毕（实测 12631 条）。
-     *
-     * 用 try 包住：万一该事件在当前 KubeJS 版本里不可用，
-     * 也只损失扫描功能，不会让整份脚本加载失败。
+     * 为什么需要「双时机 + 兜底」：
+     *   实测各事件的表现不一致：
+     *     ServerEvents.recipes   新存档首次进入不触发
+     *     ServerEvents.afterRecipes  当前版本根本不触发
+     *     ServerEvents.loaded    进入存档会触发，但 /reload 时不可靠
+     *   所以这里不再赌单一事件：
+     *     1) 脚本加载时若配方表已就绪（/reload 属于这种情况），立即扫；
+     *     2) ServerEvents.loaded 触发时补扫（进入存档走这条）；
+     *     3) ServerEvents.tick 每 20 tick 检查一次，
+     *        一旦配方表就绪且还没扫过就补扫（最后兜底）。
+     *   用 didScan 保证只扫一次，不会重复刷日志。
      * ============================================================
+     */
+    var didScan = false
+
+    /*
+     * 安全取当前服务器：脚本加载期与运行期都可能读到 null，
+     * 这里统一转成 null 处理，避免裸调用 Server.getServer() 抛错。
+     */
+    function currentServer() {
+        try {
+            var s = Server.getServer()
+            return (s === null || s === undefined) ? null : s
+        } catch (e) {
+            return null
+        }
+    }
+
+    function recipeManagerOf(server) {
+        if (server === null) return null
+        try {
+            var manager = server.getRecipeManager()
+            if (manager === null) return null
+            if (manager.getRecipes().isEmpty()) return null
+            return manager
+        } catch (e) {
+            return null
+        }
+    }
+
+    function scanOnce(server, reason) {
+        if (didScan) return
+        var manager = recipeManagerOf(server === null || server === undefined ? currentServer() : server)
+        if (manager === null) return
+        didScan = true
+        try {
+            console.info('[血鸣之狐] 开始扫描配方（触发时机：' + reason + '）')
+            scanRecipes(manager)
+        } catch (e) {
+            console.error('[血鸣之狐] 扫描配方失败：' + e)
+        }
+    }
+
+    /*
+     * 入口一：脚本加载时立刻尝试（/reload 场景，此时配方表通常已就绪）
+     */
+    scanOnce(null, '脚本加载')
+
+    /*
+     * 入口二：服务器加载完成后补扫（进入存档场景）
      */
     try {
         ServerEvents.loaded(function (event) {
-            try {
-                scanRecipes(event.server.getRecipeManager())
-            } catch (e) {
-                console.error('[血鸣之狐] 扫描配方失败：' + e)
-            }
+            scanOnce(event.server, 'loaded')
         })
     } catch (e) {
-        console.error('[血鸣之狐] 注册 ServerEvents.loaded 失败（配方扫描将不可用）：' + e)
+        console.error('[血鸣之狐] 注册 ServerEvents.loaded 失败（将由 tick 兜底）：' + e)
     }
+
+    /*
+     * 入口三：轮询兜底，防止前两个时机的配方表都还没就绪
+     */
+    ServerEvents.tick(function (event) {
+        try {
+            if (didScan) return
+            if (event.server.getTickCount() % 20 !== 0) return
+            scanOnce(event.server, 'tick 兜底')
+        } catch (e) {
+            console.error('[血鸣之狐] tick 兜底扫描失败：' + e)
+        }
+    })
 
     PlayerEvents.inventoryChanged(function (event) {
         process(event.getPlayer(), event.getItem())

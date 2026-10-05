@@ -115,6 +115,12 @@
  *
  * 前三种想要的话写进下面的 EXTRA_WEAPON_IDS 手动补录即可。
  *
+ * 另外顺带记一笔模组自身的 bug：
+ * WeaponMasterEvents#addUsedWeapon 里对 getDesc() 返回的共享枚举组件
+ * 调用了 withStyle(GREEN/BOLD)（该方法是原地修改），
+ * 于是玩家涨过一次熟练度后，模组图鉴里的类型文字也会一起变绿变粗。
+ * 本脚本用 copy() + RESET 规避，不会去改那个共享实例。
+ *
  * ============================================================
  */
 
@@ -306,26 +312,76 @@
 
     /* ============================================================
      * ⑤ 提示
-     *
-     * 类型文字直接复用模组自己的本地化键：
-     *   ageofmythology.morph.screen.manual.weapon_master.<类型>
-     * 特殊武器用源码里的 special 键。
      * ============================================================ */
+
+    var ChatFormatting = loadClass('net.minecraft.ChatFormatting')
+
+    /*
+     * 装备类型的配色（想换只改这一行）：
+     *
+     *   ChatFormatting.AQUA          青      ChatFormatting.BLUE          蓝
+     *   ChatFormatting.YELLOW        黄      ChatFormatting.GOLD          金
+     *   ChatFormatting.LIGHT_PURPLE  粉紫    ChatFormatting.GREEN         绿
+     *   ChatFormatting.WHITE         白      ChatFormatting.GRAY          灰
+     *   ChatFormatting.DARK_GRAY     深灰    ChatFormatting.RED           红
+     */
+    var TYPE_COLOR = ChatFormatting !== null ? ChatFormatting.AQUA : null
+
+    /*
+     * 取"装备类型"文案（剑 / 斧 / 锄 / 镐 / 锹 / 防具 / 远程武器 / 魔杖 / 法术书）。
+     *
+     * 模组这里有个坑，而且是个真 bug：
+     *
+     *     WeaponMasterEvents#addUsedWeapon 里写的是
+     *         weaponType.getDesc().withStyle(GREEN).withStyle(BOLD)
+     *
+     *     WeaponType.getDesc() 返回的是枚举里那个【共享】实例，
+     *     而 MutableComponent#withStyle 是原地修改
+     *     （字节码：this.style = this.style.applyFormat(...)，然后 return this），
+     *     所以玩家第一次成功涨熟练度之后，这个共享文案就被永久染成
+     *     绿色 + 粗体 —— 图鉴界面和本脚本的提示都会跟着变绿。
+     *
+     * 因此这里：
+     *   1. copy() 出副本，绝不碰那个共享实例；
+     *   2. RESET 把模组留下的绿 / 粗体清干净（Style.applyFormat(RESET) 直接返回 EMPTY）；
+     *   3. 再上我们自己的颜色。
+     *
+     * copy() 只复制内容不复制兄弟节点，翻译键仍然是 translatable，
+     * 所以客户端依旧按自己的语言显示。
+     */
+    function typeLabel(type) {
+        var desc = type !== null
+            ? type.getDesc()
+            : Component.translatable('ageofmythology.morph.screen.manual.weapon_master.special')
+
+        var label = desc
+
+        try {
+            label = desc.copy()
+        } catch (e) {
+            // copy() 拿不到就用原组件（1.20.1 一定有，这里只是保险）
+        }
+
+        if (ChatFormatting === null) return label
+
+        try {
+            label = label.withStyle(ChatFormatting.RESET)
+            if (TYPE_COLOR !== null) label = label.withStyle(TYPE_COLOR)
+        } catch (e2) {
+            console.error('[武器之狐] 设置类型配色失败：' + e2)
+        }
+
+        return label
+    }
 
     function announce(player, stack, item) {
         if (!ANNOUNCE) return
 
         try {
-            var type = getModWeaponType(item)
-
-            var typeDesc = type !== null
-                ? type.getDesc()
-                : Component.translatable('ageofmythology.morph.screen.manual.weapon_master.special')
-
             var message = Component.literal('§a[武器之狐] §7发现新的装备 §8» §f')
                 .append(Component.translatable(item.getDescriptionId()))
                 .append(Component.literal(' §8['))
-                .append(typeDesc)
+                .append(typeLabel(getModWeaponType(item)))
                 .append(Component.literal('§8] §7' + String(stack.getId())))
 
             player.tell(message)

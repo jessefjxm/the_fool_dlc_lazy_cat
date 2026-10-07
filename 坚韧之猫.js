@@ -75,6 +75,39 @@
     var MAX_COUNT = 293
 
     /*
+     * ------------------------------------------------------------
+     * 悬停提示
+     *
+     * 实现放在 _悬停.js（global.hover）。
+     * 伤害类型不是物品，所以用文字悬停显示它的关联信息。
+     * ------------------------------------------------------------
+     */
+    function hoverText(component, lines) {
+        try {
+            return global.hover.hoverText(component, lines)
+        } catch (e) {
+            console.error('[坚韧之猫] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    function hoverItem(component, itemId, nbt) {
+        try {
+            return global.hover.hoverItem(component, itemId, nbt)
+        } catch (e) {
+            console.error('[坚韧之猫] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    /*
+     * 本脚本对应的本体道具（脚本名 = 道具名）
+     */
+    var SCRIPT_ITEMS = {
+        '坚韧之猫': 'ageofmythology:ageofmythology_cat_of_tenacity_item'
+    }
+
+    /*
      * 组装进度标记，三档：当前 / 目标 / 上限
      *   §8(§a261§7/§e64§7/§f293§8)
      */
@@ -187,12 +220,27 @@
          * ========================================================
          */
         var damageTypeName = getDamageTypeName(damageTypeId)
-        var message = Component.literal('§a[坚韧之猫] §7发现新的伤害类型 §8» §f')
+        /*
+         * 悬停：前缀挂本体道具；
+         * 伤害类型名称挂文字悬停（ID + 死亡消息键）。
+         */
+        var prefix = hoverItem(Component.literal('§a[坚韧之猫]'), SCRIPT_ITEMS['坚韧之猫'], null)
+        var message = Component.literal('').append(prefix).append(Component.literal(' §7发现新的伤害类型 §8» §f'))
+
+        var lines = ['§7伤害类型 ID: §f' + damageTypeId]
+        var idText = String(damageTypeId)
+        var colon = idText.indexOf(':')
+        if (colon > 0) {
+            lines.push('§7死亡消息键: §fdeath.attack.' + idText.substring(colon + 1) + '§8（按原版命名规则）')
+        }
+        lines.push('§7当前已记录: §f' + damageTypes.size() + ' §7/ 上限 §f' + MAX_COUNT)
+        lines.push('§7成就阈值: §e' + GOAL_COUNT + '§8（佩戴超过 ' + GOAL_COUNT + ' 种伤害类型时加成翻倍）')
+        lines.push('§8悬停来源：伤害类型注册表')
 
         if (damageTypeName !== null) {
-            message.append(damageTypeName)
+            message.append(hoverText(damageTypeName, lines))
         } else {
-            message.append(Component.literal(damageTypeId))
+            message.append(hoverText(Component.literal(damageTypeId), lines))
         }
 
         message.append(Component.literal(' §8[' + damageTypeId + ']'))

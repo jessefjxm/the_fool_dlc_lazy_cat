@@ -80,6 +80,30 @@
     var MAX_COUNT = 54
 
     /*
+     * ------------------------------------------------------------
+     * 悬停提示
+     *
+     * 实现放在 _悬停.js（global.hover）：
+     * 前缀 [贪食之狐] 挂本体道具；矿物方块名称挂对应的方块物品。
+     * ------------------------------------------------------------
+     */
+    function hoverItem(component, itemId, nbt) {
+        try {
+            return global.hover.hoverItem(component, itemId, nbt)
+        } catch (e) {
+            console.error('[贪食之狐] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    /*
+     * 本脚本对应的本体道具（脚本名 = 道具名）
+     */
+    var SCRIPT_ITEMS = {
+        '贪食之狐': 'ageofmythology:ageofmythology_fox_of_gluttony_item'
+    }
+
+    /*
      * 组装进度标记，三档：当前 / 目标 / 上限
      *   §8(§a261§7/§e32§7/§f54§8)
      */
@@ -285,7 +309,17 @@
          * 提示玩家。
          */
         var blockName = getBlockName(blockId)
-        var message = Component.literal('§a[贪食之狐] §7发现新的矿物方块 §8» §f').append(blockName).append(Component.literal(' §8[' + blockId + ']')).append(Component.literal(progressText(data.list.size(), GOAL_COUNT, MAX_COUNT)))
+        /*
+         * 悬停：前缀挂本体道具；方块名称挂该方块物品
+         * （方块 id 在物品注册表里有同名物品，_悬停.js 会自己解析）。
+         */
+        var prefix = hoverItem(Component.literal('§a[贪食之狐]'), SCRIPT_ITEMS['贪食之狐'], null)
+        var message = Component.literal('')
+            .append(prefix)
+            .append(Component.literal(' §7发现新的矿物方块 §8» §f'))
+            .append(hoverItem(blockName, blockId, null))
+            .append(Component.literal(' §8[' + blockId + ']'))
+            .append(Component.literal(progressText(data.list.size(), GOAL_COUNT, MAX_COUNT)))
         player.tell(message)
 
         console.log('[贪食之狐] 玩家 ' + String(player.username) + ' 发现矿物：' + blockId + '，desc=' + desc)

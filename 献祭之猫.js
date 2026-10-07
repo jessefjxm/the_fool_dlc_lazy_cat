@@ -64,6 +64,7 @@
      */
     var MAX_COUNT = 951
 
+
     /*
      * 组装进度标记，两档：当前 / 上限
      *   §8(§a261§7/§f951§8)
@@ -96,6 +97,25 @@
         } catch (e) {
             console.error('[献祭之猫] 获取物品本地化名称失败：' + e)
             return Component.literal(itemId)
+        }
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * 悬停提示
+     *
+     * 实现放在 _悬停.js（global.hover），因为它要自己 new 原生
+     * ItemStack / ItemStackInfo 才能绕过 KubeJS 对 HoverEvent 官方
+     * API 的屏蔽，13 个脚本没必要各抄一份。
+     * 那种"绕"的原因与实测记录都写在 _悬停.js 的头部注释里。
+     * ------------------------------------------------------------
+     */
+    function hoverItem(component, itemId, nbt) {
+        try {
+            return global.hover.hoverItem(component, itemId, nbt)
+        } catch (e) {
+            console.error('[献祭之猫] 悬停工具不可用：' + e)
+            return component
         }
     }
 
@@ -196,10 +216,58 @@
 
         /*
          * 提示玩家（末尾括号是收集进度）
+         *
+         * 悬停只挂在两处，其余部分必须无悬停：
+         *   §a[献祭之猫]  -> 本脚本对应的道具（献祭之猫）
+         *   <遗物的中文名> -> 本次记录的遗物
+         * 中间的说明文字、末尾的 [id] 与进度括号都保持干净。
+         *
+         * 注意：绝不能写成先给前缀挂悬停、再 prefix.append(...) ——
+         * MutableComponent.append 是原地修改，会让整条消息都继承
+         * 那个悬停（曾出现：中间文字和进度括号都弹出道具信息）。
+         * 所以基底永远是一个全新的 literal，悬停只贴在对应片段上。
          */
-        var itemName = getItemName(itemId)
-        var message = Component.literal('§a[献祭之猫] §7发现新的遗物 §8» §f').append(itemName).append(Component.literal(' §8[' + itemId + ']')).append(Component.literal(progressText(items.size(), MAX_COUNT)))
+        var message = Component.literal('')
+            .append(hoverItem(Component.literal('§a[献祭之猫]'), SCRIPT_ITEMS['献祭之猫'], null))
+            .append(Component.literal(' §7发现新的遗物 §8» §f'))
+            .append(hoverItem(getItemName(itemId), itemId, null))
+            .append(Component.literal(' §8[' + itemId + ']'))
+            .append(Component.literal(progressText(items.size(), MAX_COUNT)))
         player.tell(message)
+    }
+
+    /*
+     * ============================================================
+     * 每个「xx之x」脚本对应的本体道具（脚本名 = 道具名）
+     *
+     * 用于给提示前缀 [xx之x] 挂上该道具的 show_item 悬停。
+     * id 全部来自模组语言文件 assets/ageofmythology/lang/zh_cn.json
+     * 里 "item.ageofmythology.<id>": "<中文名>" 的对应关系，不是猜的：
+     *   献祭之猫     -> ageofmythology_cat_of_sacrifice_item
+     *   大魔法师遗物 -> ageofmythology_grand_mage_item
+     *   旅者核心     -> ageofmythology_travel_core_item
+     *   孤独症：聆听 -> ageofmythology_autism_listen_item
+     *
+     * 本脚本用到的是「献祭之猫」那一条；整表保留，
+     * 方便其它脚本照抄同一份对应关系。
+     * ============================================================
+     */
+    var SCRIPT_ITEMS = {
+        '献祭之猫': 'ageofmythology:ageofmythology_cat_of_sacrifice_item',
+        '拾魔之猫': 'ageofmythology:ageofmythology_cat_of_mana_pick_item',
+        '书龙之猫': 'ageofmythology:ageofmythology_cat_of_dragon_book_item',
+        '坚韧之猫': 'ageofmythology:ageofmythology_cat_of_tenacity_item',
+        '酿态之猫': 'ageofmythology:ageofmythology_cat_of_brewing_item',
+        '元素之猫': 'ageofmythology:ageofmythology_cat_of_elements_item',
+        '贪食之狐': 'ageofmythology:ageofmythology_fox_of_gluttony_item',
+        '血鸣之狐': 'ageofmythology:ageofmythology_fox_of_blood_echo_item',
+        '共振之狐': 'ageofmythology:ageofmythology_fox_of_resonance_item',
+        '探险之狐': 'ageofmythology:ageofmythology_fox_of_exploration_item',
+        '陪伴之狐': 'ageofmythology:ageofmythology_fox_of_companion_item',
+        '武器之狐': 'ageofmythology:ageofmythology_fox_of_weapon_item',
+        '魔法师': 'ageofmythology:ageofmythology_grand_mage_item',
+        '旅行者': 'ageofmythology:ageofmythology_travel_core_item',
+        '孤独症': 'ageofmythology:ageofmythology_autism_listen_item'
     }
 
     /*

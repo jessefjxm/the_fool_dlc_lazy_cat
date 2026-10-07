@@ -70,6 +70,39 @@
     var MAX_COUNT = 986
 
     /*
+     * ------------------------------------------------------------
+     * 悬停提示
+     *
+     * 实现放在 _悬停.js（global.hover）。
+     * 生物不是物品，所以用文字悬停显示它的关联信息。
+     * ------------------------------------------------------------
+     */
+    function hoverText(component, lines) {
+        try {
+            return global.hover.hoverText(component, lines)
+        } catch (e) {
+            console.error('[陪伴之狐] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    function hoverItem(component, itemId, nbt) {
+        try {
+            return global.hover.hoverItem(component, itemId, nbt)
+        } catch (e) {
+            console.error('[陪伴之狐] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    /*
+     * 本脚本对应的本体道具（脚本名 = 道具名）
+     */
+    var SCRIPT_ITEMS = {
+        '陪伴之狐': 'ageofmythology:ageofmythology_fox_of_companion_item'
+    }
+
+    /*
      * 组装进度标记，三档：当前 / 目标 / 上限
      *   §8(§a261§7/§e256§7/§f986§8)
      */
@@ -192,7 +225,20 @@
 
         // 提示玩家
         var entityName = getEntityName(entityId)
-        var message = Component.literal('§a[陪伴之狐] §7发现新的生物 §8» §f').append(entityName).append(Component.literal(' §8[' + entityId + ']')).append(Component.literal(progressText(records.size(), GOAL_COUNT, MAX_COUNT)))
+        /*
+         * 悬停：前缀挂本体道具；生物名称挂文字悬停。
+         */
+        var prefix = hoverItem(Component.literal('§a[陪伴之狐]'), SCRIPT_ITEMS['陪伴之狐'], null)
+        var entityLines = ['§7实体 ID: §f' + entityId]
+        entityLines.push('§7当前已记录: §f' + records.size() + ' §7/ 上限 §f' + MAX_COUNT)
+        entityLines.push('§7成就阈值: §e' + GOAL_COUNT + '§8（佩戴超过 ' + GOAL_COUNT + ' 种生物时加成翻倍）')
+        entityLines.push('§8悬停来源：陪伴生物目录（CompanionRecordCatalog）')
+        var message = Component.literal('')
+            .append(prefix)
+            .append(Component.literal(' §7发现新的生物 §8» §f'))
+            .append(hoverText(entityName, entityLines))
+            .append(Component.literal(' §8[' + entityId + ']'))
+            .append(Component.literal(progressText(records.size(), GOAL_COUNT, MAX_COUNT)))
         player.tell(message)
     }
 

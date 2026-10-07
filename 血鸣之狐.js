@@ -103,6 +103,30 @@
     var MAX_COUNT = 103
 
     /*
+     * ------------------------------------------------------------
+     * 悬停提示
+     *
+     * 实现放在 _悬停.js（global.hover）：
+     * 前缀 [血鸣之狐] 挂本体道具；营火原料名称挂该物品。
+     * ------------------------------------------------------------
+     */
+    function hoverItem(component, itemId, nbt) {
+        try {
+            return global.hover.hoverItem(component, itemId, nbt)
+        } catch (e) {
+            console.error('[血鸣之狐] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    /*
+     * 本脚本对应的本体道具（脚本名 = 道具名）
+     */
+    var SCRIPT_ITEMS = {
+        '血鸣之狐': 'ageofmythology:ageofmythology_fox_of_blood_echo_item'
+    }
+
+    /*
      * 组装进度标记，三档：当前 / 目标 / 上限
      *   §8(§a261§7/§e32§7/§f103§8)
      */
@@ -396,7 +420,13 @@
          * 提示玩家发现新的营火原料。
          */
         var itemName = getItemName(item)
-        var message = Component.literal('§a[血鸣之狐] §7发现新的营火原料 §8» §f').append(itemName).append(Component.literal(' §8[' + itemId + ']')).append(Component.literal(progressText(items.size(), GOAL_COUNT, MAX_COUNT)))
+        var prefix = hoverItem(Component.literal('§a[血鸣之狐]'), SCRIPT_ITEMS['血鸣之狐'], null)
+        var message = Component.literal('')
+            .append(prefix)
+            .append(Component.literal(' §7发现新的营火原料 §8» §f'))
+            .append(hoverItem(itemName, itemId, null))
+            .append(Component.literal(' §8[' + itemId + ']'))
+            .append(Component.literal(progressText(items.size(), GOAL_COUNT, MAX_COUNT)))
         player.tell(message)
     }
 

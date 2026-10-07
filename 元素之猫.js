@@ -144,6 +144,39 @@
     var tagSetCache = {}
 
     /*
+     * ------------------------------------------------------------
+     * 悬停提示
+     *
+     * 实现放在 _悬停.js（global.hover）。
+     * 怪物不是物品，用文字悬停显示它的关联信息。
+     * ------------------------------------------------------------
+     */
+    function hoverText(component, lines) {
+        try {
+            return global.hover.hoverText(component, lines)
+        } catch (e) {
+            console.error('[元素之猫] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    function hoverItem(component, itemId, nbt) {
+        try {
+            return global.hover.hoverItem(component, itemId, nbt)
+        } catch (e) {
+            console.error('[元素之猫] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    /*
+     * 本脚本对应的本体道具（脚本名 = 道具名）
+     */
+    var SCRIPT_ITEMS = {
+        '元素之猫': 'ageofmythology:ageofmythology_cat_of_elements_item'
+    }
+
+    /*
      * 组装进度标记，两档：当前 / 上限
      *   §8(§a5§7/§f35§8)
      * 当前亮绿=该系已记录的怪物种类数，
@@ -290,13 +323,20 @@
     /*
      * ------------------------------------------------------------
      * 判断是否为玩家
+     *
+     * 必须先判 null/undefined：
+     *   DamageSource.getActual() / getImmediate() / getKillCredit()
+     *   在没有对应实体时返回的是 undefined（不是 null），
+     *   直接调 .isPlayer() 会报
+     *   「Cannot call method "isPlayer" of undefined」
+     *   —— 这是环境伤害（摔落、火焰等）路径上的正常情况，不算错误。
      * ------------------------------------------------------------
      */
     function isPlayer(entity) {
+        if (entity === null || entity === undefined) return false
         try {
             return entity.isPlayer()
         } catch (e) {
-            console.error('[元素之猫] 判断玩家实体失败：' + e)
             return false
         }
     }
@@ -450,7 +490,22 @@
          * 进度显示：当前=该系已记录怪物种类数，上限=该系在当前整合包里的怪物总数。
          */
         var collected = collectedInTag(player, affinity.tagId)
-        var message = Component.literal('§a[元素之猫] §7记录' + affinity.label + '生物 §8» §f').append(getEntityName(entityId)).append(Component.literal(' §8[' + entityId + ']')).append(Component.literal(progressText(collected, affinity.max)))
+        /*
+         * 悬停：前缀挂本体道具；怪物名称挂文字悬停
+         * （实体 ID + 所属学派 + 该系进度）。
+         */
+        var prefix = hoverItem(Component.literal('§a[元素之猫]'), SCRIPT_ITEMS['元素之猫'], null)
+        var entityLines = ['§7实体 ID: §f' + entityId]
+        entityLines.push('§7所属学派: §f' + affinity.label)
+        entityLines.push('§7当前已记录: §f' + collected + ' §7/ 上限 §f' + affinity.max)
+        entityLines.push('§7成就阈值: §8本系无阈值（每个怪物各自 value 5.0 封顶）')
+        entityLines.push('§8悬停来源：模组实体类型标签')
+        var message = Component.literal('')
+            .append(prefix)
+            .append(Component.literal(' §7记录' + affinity.label + '生物 §8» §f'))
+            .append(hoverText(getEntityName(entityId), entityLines))
+            .append(Component.literal(' §8[' + entityId + ']'))
+            .append(Component.literal(progressText(collected, affinity.max)))
         player.tell(message)
         console.log('[元素之猫] 玩家 ' + String(player.username) + ' 击杀' + affinity.label + '生物：' + entityId + '（进度 ' + collected + '/' + affinity.max + '）')
     }

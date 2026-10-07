@@ -128,6 +128,40 @@
 
     /*
      * ------------------------------------------------------------
+     * 悬停提示
+     *
+     * 实现放在 _悬停.js（global.hover）。
+     * 怪物不是物品，用文字悬停显示它的关联信息。
+     * ------------------------------------------------------------
+     */
+    function hoverText(component, lines) {
+        try {
+            return global.hover.hoverText(component, lines)
+        } catch (e) {
+            console.error('[魔法师] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    function hoverItem(component, itemId, nbt) {
+        try {
+            return global.hover.hoverItem(component, itemId, nbt)
+        } catch (e) {
+            console.error('[魔法师] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    /*
+     * 本脚本对应的本体道具：脚本名是「魔法师」，
+     * 但对应道具在语言文件里叫「大魔法师遗物」。
+     */
+    var SCRIPT_ITEMS = {
+        '魔法师': 'ageofmythology:ageofmythology_grand_mage_item'
+    }
+
+    /*
+     * ------------------------------------------------------------
      * 标签 id -> TagKey<EntityType<?>>
      * ------------------------------------------------------------
      */
@@ -307,13 +341,19 @@
     /*
      * ------------------------------------------------------------
      * 判断是否为玩家
+     *
+     * 必须先判 null/undefined：
+     *   伤害来源在没有对应实体时返回的是 undefined（不是 null），
+     *   直接调 .isPlayer() 会报
+     *   「Cannot call method "isPlayer" of undefined」
+     *   —— 环境伤害（摔落、火焰等）路径上的正常情况，不算错误。
      * ------------------------------------------------------------
      */
     function isPlayer(entity) {
+        if (entity === null || entity === undefined) return false
         try {
             return entity.isPlayer()
         } catch (e) {
-            console.error('[魔法师] 判断玩家实体失败：' + e)
             return false
         }
     }
@@ -504,9 +544,17 @@
          * 提示文本（配色与模组一致：§a 亮点 / §7 灰字 / §8 深灰弱化）：
          *   §a[魔法师] §7记录§a魔法系§7生物 §8» §f<名称> §8[<id>] §8(§a5§7/§f37§8)
          * 末尾括号是收集进度：分子绿色=已收集，分母白色=该系总数。
+         *
+         * 悬停：前缀挂本体道具（大魔法师遗物）；怪物名称挂文字悬停。
          */
-        var message = Component.literal('§a[魔法师] §7记录§a' + affinity.label + '§7生物 §8» §f')
-            .append(getEntityName(entityId))
+        var prefix = hoverItem(Component.literal('§a[魔法师]'), SCRIPT_ITEMS['魔法师'], null)
+        var entityLines = ['§7实体 ID: §f' + entityId]
+        entityLines.push('§7所属学派: §f' + affinity.label)
+        entityLines.push('§7当前已记录: §f' + result.collected + ' §7/ 上限 §f' + result.total)
+        entityLines.push('§7成就阈值: §8本系无阈值（每个怪物各自 value 5.0 封顶）')
+        entityLines.push('§8悬停来源：模组实体类型标签')
+        var message = Component.literal('').append(prefix).append(Component.literal(' §7记录§a' + affinity.label + '§7生物 §8» §f'))
+            .append(hoverText(getEntityName(entityId), entityLines))
             .append(Component.literal(' §8[' + entityId + ']'))
             .append(Component.literal(progressText(result.collected, result.total)))
         player.tell(message)

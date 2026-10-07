@@ -77,6 +77,40 @@
     var MAX_BIOME = 400
 
     /*
+     * ------------------------------------------------------------
+     * 悬停提示
+     *
+     * 实现放在 _悬停.js（global.hover）。
+     * 生物群系不是物品，用文字悬停显示它的关联信息。
+     * ------------------------------------------------------------
+     */
+    function hoverItem(component, itemId, nbt) {
+        try {
+            return global.hover.hoverItem(component, itemId, nbt)
+        } catch (e) {
+            console.error('[旅行者] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    function hoverText(component, lines) {
+        try {
+            return global.hover.hoverText(component, lines)
+        } catch (e) {
+            console.error('[旅行者] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    /*
+     * 本脚本对应的本体道具：脚本名是「旅行者」，
+     * 对应道具在语言文件里叫「旅者核心」。
+     */
+    var SCRIPT_ITEMS = {
+        '旅行者': 'ageofmythology:ageofmythology_travel_core_item'
+    }
+
+    /*
      * 无目标值时的两档标记：当前 / 上限
      *   §8(§a261§7/§f400§8)
      */
@@ -264,7 +298,17 @@
 
         var name = getBiomeName(biomeId)
         console.info('[旅行者] ★ 发现新的生物群系：' + biomeId)
-        player.tell(Component.literal('§a[旅行者] §7发现新的生物群系 §8» §f').append(name).append(Component.literal(' §8[' + biomeId + ']')).append(Component.literal(progressText(countRecordedBiomes(player), MAX_BIOME))))
+        var recorded = countRecordedBiomes(player)
+        var biomeLines = ['§7群系 ID: §f' + biomeId]
+        biomeLines.push('§7当前已记录: §f' + recorded + ' §7/ 上限 §f' + MAX_BIOME)
+        biomeLines.push('§7成就阈值: §8该类无阈值')
+        biomeLines.push('§8悬停来源：群系注册表 + VisitBiomes 记录')
+        player.tell(Component.literal('')
+            .append(hoverItem(Component.literal('§a[旅行者]'), SCRIPT_ITEMS['旅行者'], null))
+            .append(Component.literal(' §7发现新的生物群系 §8» §f'))
+            .append(hoverText(name, biomeLines))
+            .append(Component.literal(' §8[' + biomeId + ']'))
+            .append(Component.literal(progressText(recorded, MAX_BIOME))))
     }
 
     /*

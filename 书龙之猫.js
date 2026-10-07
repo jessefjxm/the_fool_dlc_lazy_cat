@@ -86,6 +86,37 @@
     var MAX_COUNT = 169
 
     /*
+     * ------------------------------------------------------------
+     * 悬停提示
+     *
+     * 实现放在 _悬停.js（global.hover）：
+     * 前缀 [书龙之猫] 挂本体道具；附魔名称挂附魔书物品。
+     * ------------------------------------------------------------
+     */
+    function hoverItem(component, itemId, nbt) {
+        try {
+            return global.hover.hoverItem(component, itemId, nbt)
+        } catch (e) {
+            console.error('[书龙之猫] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    /*
+     * 本脚本对应的本体道具（脚本名 = 道具名）
+     */
+    var SCRIPT_ITEMS = {
+        '书龙之猫': 'ageofmythology:ageofmythology_cat_of_dragon_book_item'
+    }
+
+    /*
+     * 悬停用的附魔书物品：
+     * 附魔本身不是物品，但每本附魔书都能代表它，
+     * 「附魔名称」上挂普通附魔书 + 该附魔的 NBT，这样卡片里能看到附魔名。
+     */
+    var BOOK_ITEM = 'minecraft:enchanted_book'
+
+    /*
      * 组装进度标记，三档：当前 / 目标 / 上限
      *   §8(§a261§7/§e128§7/§f169§8)
      */
@@ -253,7 +284,17 @@
              *   §f  附魔本地化名称
              */
             var enchantmentName = getEnchantmentName(enchantmentId)
-            var message = Component.literal('§a[书龙之猫] §7发现新的附魔 §8» §f').append(enchantmentName).append(Component.literal(' §8[' + enchantmentId + ']')).append(Component.literal(progressText(books.size(), GOAL_COUNT, MAX_COUNT)))
+            /*
+             * 悬停：前缀挂本体道具；附魔名称挂附魔书
+             * （附魔本身不是物品，用附魔书代表它）。
+             */
+            var prefix = hoverItem(Component.literal('§a[书龙之猫]'), SCRIPT_ITEMS['书龙之猫'], null)
+            var message = Component.literal('')
+                .append(prefix)
+                .append(Component.literal(' §7发现新的附魔 §8» §f'))
+                .append(hoverItem(enchantmentName, BOOK_ITEM, null))
+                .append(Component.literal(' §8[' + enchantmentId + ']'))
+                .append(Component.literal(progressText(books.size(), GOAL_COUNT, MAX_COUNT)))
             player.tell(message)
 
             console.info('[书龙之猫] 已记录新附魔：' + enchantmentId)

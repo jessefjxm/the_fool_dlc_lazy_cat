@@ -66,6 +66,59 @@
     var MAX_SCROLL = 198
 
     /*
+     * --------------------------------------------------------
+     * 悬停提示
+     *
+     * 实现放在 _悬停.js（global.hover）。
+     * 前缀 [拾魔之猫] 挂它自己的道具，条目名称挂对应物品。
+     * --------------------------------------------------------
+     */
+    function hoverItem(component, itemId, nbt) {
+        try {
+            return global.hover.hoverItem(component, itemId, nbt)
+        } catch (e) {
+            console.error('[拾魔之猫] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    /*
+     * 本脚本对应的本体道具（脚本名 = 道具名）。
+     * id 取自模组语言文件里 "item.ageofmythology.<id>": "拾魔之猫"。
+     */
+    var SCRIPT_ITEMS = {
+        '拾魔之猫': 'ageofmythology:ageofmythology_cat_of_mana_pick_item'
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * 法术卷轴的悬停
+     *
+     * 卷轴本身是物品 irons_spellbooks:scroll，
+     * 具体记录的法术放在它的 NBT 里：
+     *   irons_spellbooks:spell_container = {
+     *     data: [ { id: "<法术id>", index: 0, level: 1, locked: 1b } ],
+     *     maxSpells: 1, mustEquip: 0b, spellWheel: 0b
+     *   }
+     * （字段名对照 irons_spellbooks 的 ISpellContainer.NBT /
+     *   SpellContainer.SPELL_DATA 等常量，不是猜的。）
+     *
+     * 这样鼠标移到法术名称上时，弹出的就是"装着这个法术的卷轴"卡片。
+     * NBT 拼装失败时退化为只有物品图标的卷轴，不影响提示文字。
+     * ------------------------------------------------------------
+     */
+    function scrollHover(component, spellId) {
+        var snbt = '{Count:1b,id:"irons_spellbooks:scroll",tag:{"irons_spellbooks:spell_container":{data:[{id:"' +
+            String(spellId) + '",index:0,level:1,locked:1b}],maxSpells:1,mustEquip:0b,spellWheel:0b}}}'
+        try {
+            return global.hover.hoverItemWithSnbt(component, 'irons_spellbooks:scroll', snbt)
+        } catch (e) {
+            console.error('[拾魔之猫] 卷轴悬停失败：' + e)
+            return component
+        }
+    }
+
+    /*
      * 组装进度标记，三档：当前 / 目标 / 上限
      *   §8(§a261§7/§e12§7/§f951§8)
      * 括号深灰弱化；当前亮绿、目标亮金（模组成就阈值）、上限白色（整合包理论上限）。
@@ -181,6 +234,12 @@
         var changed = false
 
         /*
+         * 提示前缀，挂【拾魔之猫】本体道具的悬停。
+         * 放在分支外，两个分支共用同一份。
+         */
+        var prefix = hoverItem(Component.literal('§a[拾魔之猫]'), SCRIPT_ITEMS['拾魔之猫'], null)
+
+        /*
          * --------------------------------------------------------
          * 法术卷轴
          * --------------------------------------------------------
@@ -192,7 +251,15 @@
                 traveller.put('nbt_spell_scroll', spells)
 
                 var spellName = getSpellName(spellId)
-                var message = Component.literal('§a[拾魔之猫] §7发现新的法术 §8» §f').append(spellName).append(Component.literal(' §8[' + spellId + ']')).append(Component.literal(progressText(spells.size(), GOAL_SCROLL, MAX_SCROLL)))
+                /*
+                 * 法术名称挂【装着该法术的卷轴】：卡片里能看到法术名与等级。
+                 */
+                var message = Component.literal('')
+                    .append(prefix)
+                    .append(Component.literal(' §7发现新的法术 §8» §f'))
+                    .append(scrollHover(spellName, spellId))
+                    .append(Component.literal(' §8[' + spellId + ']'))
+                    .append(Component.literal(progressText(spells.size(), GOAL_SCROLL, MAX_SCROLL)))
                 player.tell(message)
 
                 changed = true
@@ -211,7 +278,12 @@
                 traveller.put('nbt_upgrade_orb', orbs)
 
                 var itemName = getItemName(itemId)
-                var message = Component.literal('§a[拾魔之猫] §7发现新的升级法球 §8» §f').append(itemName).append(Component.literal(' §8[' + itemId + ']')).append(Component.literal(progressText(orbs.size(), GOAL_ORB, MAX_ORB)))
+                var message = Component.literal('')
+                    .append(prefix)
+                    .append(Component.literal(' §7发现新的升级法球 §8» §f'))
+                    .append(hoverItem(itemName, itemId, null))
+                    .append(Component.literal(' §8[' + itemId + ']'))
+                    .append(Component.literal(progressText(orbs.size(), GOAL_ORB, MAX_ORB)))
                 player.tell(message)
 
                 changed = true

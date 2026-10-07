@@ -78,6 +78,39 @@
     var MAX_COUNT = 668
 
     /*
+     * ------------------------------------------------------------
+     * 悬停提示
+     *
+     * 实现放在 _悬停.js（global.hover）。
+     * 结构不是物品，所以用文字悬停显示它的关联信息。
+     * ------------------------------------------------------------
+     */
+    function hoverText(component, lines) {
+        try {
+            return global.hover.hoverText(component, lines)
+        } catch (e) {
+            console.error('[探险之狐] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    function hoverItem(component, itemId, nbt) {
+        try {
+            return global.hover.hoverItem(component, itemId, nbt)
+        } catch (e) {
+            console.error('[探险之狐] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    /*
+     * 本脚本对应的本体道具（脚本名 = 道具名）
+     */
+    var SCRIPT_ITEMS = {
+        '探险之狐': 'ageofmythology:ageofmythology_fox_of_exploration_item'
+    }
+
+    /*
      * 组装进度标记，三档：当前 / 目标 / 上限
      *   §8(§a261§7/§e256§7/§f668§8)
      */
@@ -277,7 +310,20 @@
 
             if (addRecord(structures, structureId)) {
                 var name = getStructureName(structureId)
-                var message = Component.literal('§a[探险之狐] §7发现新的结构 §8» §f').append(name).append(Component.literal(' §8[' + structureId + ']')).append(Component.literal(progressText(structures.size(), GOAL_COUNT, MAX_COUNT)))
+                /*
+                 * 悬停：前缀挂本体道具；结构名称挂文字悬停。
+                 */
+                var prefix = hoverItem(Component.literal('§a[探险之狐]'), SCRIPT_ITEMS['探险之狐'], null)
+                var structureLines = ['§7结构 ID: §f' + structureId]
+                structureLines.push('§7当前已记录: §f' + structures.size() + ' §7/ 上限 §f' + MAX_COUNT)
+                structureLines.push('§7成就阈值: §e' + GOAL_COUNT + '§8（佩戴超过 ' + GOAL_COUNT + ' 种结构时加成翻倍）')
+                structureLines.push('§8悬停来源：结构目录（StructureCatalogService）')
+                var message = Component.literal('')
+                    .append(prefix)
+                    .append(Component.literal(' §7发现新的结构 §8» §f'))
+                    .append(hoverText(name, structureLines))
+                    .append(Component.literal(' §8[' + structureId + ']'))
+                    .append(Component.literal(progressText(structures.size(), GOAL_COUNT, MAX_COUNT)))
                 player.tell(message)
                 changed = true
             }

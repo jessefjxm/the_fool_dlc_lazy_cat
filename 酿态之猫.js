@@ -90,6 +90,39 @@
     var MAX_COUNT = 671
 
     /*
+     * ------------------------------------------------------------
+     * 悬停提示
+     *
+     * 实现放在 _悬停.js（global.hover）。
+     * 效果（Buff）本身不是物品，用文字悬停显示它的关联信息。
+     * ------------------------------------------------------------
+     */
+    function hoverText(component, lines) {
+        try {
+            return global.hover.hoverText(component, lines)
+        } catch (e) {
+            console.error('[酿态之猫] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    function hoverItem(component, itemId, nbt) {
+        try {
+            return global.hover.hoverItem(component, itemId, nbt)
+        } catch (e) {
+            console.error('[酿态之猫] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    /*
+     * 本脚本对应的本体道具（脚本名 = 道具名）
+     */
+    var SCRIPT_ITEMS = {
+        '酿态之猫': 'ageofmythology:ageofmythology_cat_of_brewing_item'
+    }
+
+    /*
      * 组装进度标记，三档：当前 / 目标 / 上限
      *   §8(§a261§7/§e128§7/§f671§8)
      */
@@ -223,12 +256,23 @@
          * ========================================================
          */
         var effectName = getEffectName(effectTypeId)
-        var message = Component.literal('§a[酿态之猫] §7发现新的效果 §8» §f')
+        /*
+         * 悬停：前缀挂本体道具；
+         * 效果名称挂文字悬停（ID + 说明这是状态效果而非物品）。
+         */
+        var prefix = hoverItem(Component.literal('§a[酿态之猫]'), SCRIPT_ITEMS['酿态之猫'], null)
+        var message = Component.literal('').append(prefix).append(Component.literal(' §7发现新的效果 §8» §f'))
+
+        var lines = ['§7效果 ID: §f' + effectTypeId, '§7类型: §f状态效果（Buff / Debuff）']
+        lines.push('§7药水名称键: §feffect.' + String(effectTypeId).replace(':', '.') + '§8（按原版命名规则）')
+        lines.push('§7当前已记录: §f' + effectTypes.size() + ' §7/ 上限 §f' + MAX_COUNT)
+        lines.push('§7成就阈值: §e' + GOAL_COUNT + '§8（佩戴超过 ' + GOAL_COUNT + ' 种效果时加成翻倍）')
+        lines.push('§8悬停来源：状态效果注册表')
 
         if (effectName !== null) {
-            message.append(effectName)
+            message.append(hoverText(effectName, lines))
         } else {
-            message.append(Component.literal(effectTypeId))
+            message.append(hoverText(Component.literal(effectTypeId), lines))
         }
 
         message.append(Component.literal(' §8[' + effectTypeId + ']'))

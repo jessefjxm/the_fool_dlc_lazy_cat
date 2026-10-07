@@ -71,6 +71,40 @@
     var MAX_DISC = 106
 
     /*
+     * ------------------------------------------------------------
+     * 悬停提示
+     *
+     * 实现放在 _悬停.js（global.hover）。
+     * 唱片是物品 -> show_item；生物群系不是物品 -> show_text。
+     * ------------------------------------------------------------
+     */
+    function hoverItem(component, itemId, nbt) {
+        try {
+            return global.hover.hoverItem(component, itemId, nbt)
+        } catch (e) {
+            console.error('[孤独症] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    function hoverText(component, lines) {
+        try {
+            return global.hover.hoverText(component, lines)
+        } catch (e) {
+            console.error('[孤独症] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    /*
+     * 本脚本对应的本体道具：脚本名是「孤独症」，
+     * 对应道具在语言文件里叫「孤独症：聆听」。
+     */
+    var SCRIPT_ITEMS = {
+        '孤独症': 'ageofmythology:ageofmythology_autism_listen_item'
+    }
+
+    /*
      * 无目标值时的两档标记：当前 / 上限
      *   §8(§a261§7/§f400§8)
      */
@@ -350,7 +384,12 @@
 
         var name = getDiscName(item)
         console.info('[孤独症] ★ 发现新的唱片：' + itemId)
-        player.tell(Component.literal('§a[孤独症] §7发现新的唱片 §8» §f').append(name).append(Component.literal(' §8[' + itemId + ']')).append(Component.literal(progressText(collected, MAX_DISC))))
+        player.tell(Component.literal('')
+            .append(hoverItem(Component.literal('§a[孤独症]'), SCRIPT_ITEMS['孤独症'], null))
+            .append(Component.literal(' §7发现新的唱片 §8» §f'))
+            .append(hoverItem(name, itemId, null))
+            .append(Component.literal(' §8[' + itemId + ']'))
+            .append(Component.literal(progressText(collected, MAX_DISC))))
     }
 
     /*
@@ -399,7 +438,16 @@
 
         var name = getBiomeName(biomeId)
         console.info('[孤独症] ★ 发现新的生物群系：' + biomeId)
-        player.tell(Component.literal('§a[孤独症] §7发现新的生物群系 §8» §f').append(name).append(Component.literal(' §8[' + biomeId + ']')).append(Component.literal(progressText(collected, MAX_BIOME))))
+        var biomeLines = ['§7群系 ID: §f' + biomeId]
+        biomeLines.push('§7当前已记录: §f' + collected + ' §7/ 上限 §f' + MAX_BIOME)
+        biomeLines.push('§7成就阈值: §8该类无阈值')
+        biomeLines.push('§8悬停来源：群系注册表')
+        player.tell(Component.literal('')
+            .append(hoverItem(Component.literal('§a[孤独症]'), SCRIPT_ITEMS['孤独症'], null))
+            .append(Component.literal(' §7发现新的生物群系 §8» §f'))
+            .append(hoverText(name, biomeLines))
+            .append(Component.literal(' §8[' + biomeId + ']'))
+            .append(Component.literal(progressText(collected, MAX_BIOME))))
     }
 
     /*

@@ -126,6 +126,28 @@
 
 (function () {
     /* ============================================================
+     * 悬停提示
+     *
+     * 实现放在 _悬停.js（global.hover）：
+     * 前缀 [武器之狐] 挂本体道具；装备名称挂该物品卡片。
+     * ============================================================ */
+    function hoverItem(component, itemId, nbt) {
+        try {
+            return global.hover.hoverItem(component, itemId, nbt)
+        } catch (e) {
+            console.error('[武器之狐] 悬停工具不可用：' + e)
+            return component
+        }
+    }
+
+    /*
+     * 本脚本对应的本体道具（脚本名 = 道具名）
+     */
+    var SCRIPT_ITEMS = {
+        '武器之狐': 'ageofmythology:ageofmythology_fox_of_weapon_item'
+    }
+
+    /* ============================================================
      * 工具
      * ============================================================ */
 
@@ -378,8 +400,13 @@
         if (!ANNOUNCE) return
 
         try {
-            var message = Component.literal('§a[武器之狐] §7发现新的装备 §8» §f')
-                .append(Component.translatable(item.getDescriptionId()))
+            /*
+             * 悬停：前缀挂本体道具；装备名称挂该物品。
+             * 类型标签（武器/法杖…）与物品 ID 保持无悬停。
+             */
+            var prefix = hoverItem(Component.literal('§a[武器之狐]'), SCRIPT_ITEMS['武器之狐'], null)
+            var message = Component.literal('').append(prefix).append(Component.literal(' §7发现新的装备 §8» §f'))
+                .append(hoverItem(Component.translatable(item.getDescriptionId()), String(stack.getId()), null))
                 .append(Component.literal(' §8['))
                 .append(typeLabel(getModWeaponType(item)))
                 .append(Component.literal('§8] §7' + String(stack.getId())))

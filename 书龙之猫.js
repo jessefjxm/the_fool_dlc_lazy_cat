@@ -111,10 +111,27 @@
 
     /*
      * 悬停用的附魔书物品：
-     * 附魔本身不是物品，但每本附魔书都能代表它，
-     * 「附魔名称」上挂普通附魔书 + 该附魔的 NBT，这样卡片里能看到附魔名。
+     * 附魔本身不是物品，但每本附魔书都能代表它。
      */
     var BOOK_ITEM = 'minecraft:enchanted_book'
+
+    /*
+     * ------------------------------------------------------------
+     * 附魔书悬停
+     *
+     * 用 SNBT 手工拼一本"写着指定附魔"的附魔书，
+     * 卡片里才会显示附魔名称与等级。
+     * 失败时退化为无附魔的普通附魔书，不影响提示文字。
+     * ------------------------------------------------------------
+     */
+    function bookHover(component, bookSnbt) {
+        try {
+            return global.hover.hoverItemWithSnbt(component, BOOK_ITEM, bookSnbt)
+        } catch (e) {
+            console.error('[书龙之猫] 附魔书悬停失败：' + e)
+            return component
+        }
+    }
 
     /*
      * 组装进度标记，三档：当前 / 目标 / 上限
@@ -285,14 +302,20 @@
              */
             var enchantmentName = getEnchantmentName(enchantmentId)
             /*
-             * 悬停：前缀挂本体道具；附魔名称挂附魔书
-             * （附魔本身不是物品，用附魔书代表它）。
+             * 悬停：前缀挂本体道具；附魔名称挂【写着该附魔的附魔书】。
+             *
+             * 只挂一本书的话卡片里看不到附魔内容，必须把附魔写进 NBT：
+             *   {Count:1b,id:"minecraft:enchanted_book",
+             *    tag:{StoredEnchantments:[{id:"<附魔id>",lvl:1s}]}}
+             * 注意 lvl 必须带 s（short）后缀，少写 TagParser 会直接抛异常。
              */
+            var bookSnbt = '{Count:1b,id:"minecraft:enchanted_book",tag:{StoredEnchantments:[{id:"' +
+                String(enchantmentId) + '",lvl:1s}]}}'
             var prefix = hoverItem(Component.literal('§a[书龙之猫]'), SCRIPT_ITEMS['书龙之猫'], null)
             var message = Component.literal('')
                 .append(prefix)
                 .append(Component.literal(' §7发现新的附魔 §8» §f'))
-                .append(hoverItem(enchantmentName, BOOK_ITEM, null))
+                .append(bookHover(enchantmentName, bookSnbt))
                 .append(Component.literal(' §8[' + enchantmentId + ']'))
                 .append(Component.literal(progressText(books.size(), GOAL_COUNT, MAX_COUNT)))
             player.tell(message)

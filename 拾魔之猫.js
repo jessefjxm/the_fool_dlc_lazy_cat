@@ -108,12 +108,44 @@
      * ------------------------------------------------------------
      */
     function scrollHover(component, spellId) {
-        var snbt = '{Count:1b,id:"irons_spellbooks:scroll",tag:{"irons_spellbooks:spell_container":{data:[{id:"' +
+        /*
+         * 卷轴物品的完整 SNBT。
+         * 注意 lvl / locked 的字节宽度都按原版写法带后缀（1s / 1b），
+         * 少一个后缀 TagParser 会直接抛异常。
+         */
+        var itemSnbt = '{Count:1b,id:"irons_spellbooks:scroll",tag:{"irons_spellbooks:spell_container":{data:[{id:"' +
             String(spellId) + '",index:0,level:1,locked:1b}],maxSpells:1,mustEquip:0b,spellWheel:0b}}}'
         try {
-            return global.hover.hoverItemWithSnbt(component, 'irons_spellbooks:scroll', snbt)
+            return global.hover.hoverItemWithSnbt(component, 'irons_spellbooks:scroll', itemSnbt)
         } catch (e) {
-            console.error('[拾魔之猫] 卷轴悬停失败：' + e)
+            console.error('[拾魔之猫] 卷轴悬停失败（global.hover 不可用？）：' + e)
+        }
+        /*
+         * 兜底：不依赖 _悬停.js 的 SNBT 入口，
+         * 自己解析 NBT 并用原生栈构造悬停事件。
+         * 用于排除「脚本加载顺序导致 global.hover 方法缺失」这种可能。
+         */
+        try {
+            var TagParser = Java.loadClass('net.minecraft.nbt.TagParser')
+            var HoverEventClass = Java.loadClass('net.minecraft.network.chat.HoverEvent')
+            var HoverAction = Java.loadClass('net.minecraft.network.chat.HoverEvent$Action')
+            var HoverItemStackInfo = Java.loadClass('net.minecraft.network.chat.HoverEvent$ItemStackInfo')
+            var StyleClass = Java.loadClass('net.minecraft.network.chat.Style')
+
+            var stack = global.hover.nativeStackOf('irons_spellbooks:scroll')
+            if (stack === null) return component
+            var parsed = TagParser.parseTag(itemSnbt)
+            stack.setTag(parsed.getCompound('tag'))
+
+            var info = new HoverItemStackInfo(stack)
+            var event = new HoverEventClass(HoverAction.SHOW_ITEM, info)
+            var style = StyleClass.EMPTY.withHoverEvent(event)
+            var out = Component.literal(String(component.getString()))
+            out.setStyle(style)
+            console.info('[拾魔之猫] 卷轴悬停走内联兜底成功')
+            return out
+        } catch (e2) {
+            console.error('[拾魔之猫] 卷轴悬停内联兜底也失败：' + e2)
             return component
         }
     }

@@ -177,6 +177,39 @@
     }
 
     /*
+     * ------------------------------------------------------------
+     * 学派标签的配色与位置（与【武器之狐】的类型说明保持一致）
+     *
+     *   位置：后置，写成 §8[§b火系§8]
+     *   颜色：ChatFormatting.AQUA（青色）
+     *
+     * 为什么用 copy() + RESET：
+     *   applyAffinity 返回的 Component 可能来自模组的共享实例，
+     *   而 MutableComponent.withStyle 是原地修改，
+     *   直接改会污染那个共享实例（武器之狐就踩过模组这个坑）。
+     * ------------------------------------------------------------
+     */
+    var ChatFormatting = loadClass('net.minecraft.ChatFormatting')
+    var TYPE_COLOR = ChatFormatting !== null ? ChatFormatting.AQUA : null
+
+    function affinityLabel(label) {
+        var component = null
+        try {
+            component = Component.literal(String(label))
+        } catch (e) {
+            return null
+        }
+        if (ChatFormatting === null) return component
+        try {
+            component = component.withStyle(ChatFormatting.RESET)
+            if (TYPE_COLOR !== null) component = component.withStyle(TYPE_COLOR)
+        } catch (e2) {
+            console.error('[元素之猫] 设置学派配色失败：' + e2)
+        }
+        return component
+    }
+
+    /*
      * 组装进度标记，两档：当前 / 上限
      *   §8(§a5§7/§f35§8)
      * 当前亮绿=该系已记录的怪物种类数，
@@ -502,9 +535,11 @@
         entityLines.push('§8悬停来源：模组实体类型标签')
         var message = Component.literal('')
             .append(prefix)
-            .append(Component.literal(' §7记录' + affinity.label + '生物 §8» §f'))
+            .append(Component.literal(' §7记录生物 §8» §f'))
             .append(hoverText(getEntityName(entityId), entityLines))
-            .append(Component.literal(' §8[' + entityId + ']'))
+            .append(Component.literal(' §8[' + entityId + '] §8['))
+            .append(affinityLabel(affinity.label))
+            .append(Component.literal('§8] '))
             .append(Component.literal(progressText(collected, affinity.max)))
         player.tell(message)
         console.log('[元素之猫] 玩家 ' + String(player.username) + ' 击杀' + affinity.label + '生物：' + entityId + '（进度 ' + collected + '/' + affinity.max + '）')

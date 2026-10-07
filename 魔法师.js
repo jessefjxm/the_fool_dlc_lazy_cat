@@ -128,6 +128,37 @@
 
     /*
      * ------------------------------------------------------------
+     * 学派标签的配色与位置（与【武器之狐】的类型说明保持一致）
+     *
+     *   位置：后置，写成 §8[§b魔法系§8]
+     *   颜色：ChatFormatting.AQUA（青色）
+     *
+     * 用 copy() + RESET 的理由同武器之狐：
+     *   MutableComponent.withStyle 是原地修改，碰共享实例会污染其它界面。
+     * ------------------------------------------------------------
+     */
+    var ChatFormatting = loadClass('net.minecraft.ChatFormatting')
+    var TYPE_COLOR = ChatFormatting !== null ? ChatFormatting.AQUA : null
+
+    function affinityLabel(label) {
+        var component = null
+        try {
+            component = Component.literal(String(label))
+        } catch (e) {
+            return null
+        }
+        if (ChatFormatting === null) return component
+        try {
+            component = component.withStyle(ChatFormatting.RESET)
+            if (TYPE_COLOR !== null) component = component.withStyle(TYPE_COLOR)
+        } catch (e2) {
+            console.error('[魔法师] 设置学派配色失败：' + e2)
+        }
+        return component
+    }
+
+    /*
+     * ------------------------------------------------------------
      * 悬停提示
      *
      * 实现放在 _悬停.js（global.hover）。
@@ -553,9 +584,13 @@
         entityLines.push('§7当前已记录: §f' + result.collected + ' §7/ 上限 §f' + result.total)
         entityLines.push('§7成就阈值: §8本系无阈值（每个怪物各自 value 5.0 封顶）')
         entityLines.push('§8悬停来源：模组实体类型标签')
-        var message = Component.literal('').append(prefix).append(Component.literal(' §7记录§a' + affinity.label + '§7生物 §8» §f'))
+        var message = Component.literal('')
+            .append(prefix)
+            .append(Component.literal(' §7记录生物 §8» §f'))
             .append(hoverText(getEntityName(entityId), entityLines))
-            .append(Component.literal(' §8[' + entityId + ']'))
+            .append(Component.literal(' §8[' + entityId + '] §8['))
+            .append(affinityLabel(affinity.label))
+            .append(Component.literal('§8] '))
             .append(Component.literal(progressText(result.collected, result.total)))
         player.tell(message)
         console.log('[魔法师] 玩家 ' + String(player.username) + ' 击杀' + affinity.label + '生物：' + entityId + '（进度 ' + result.collected + '/' + result.total + '）')

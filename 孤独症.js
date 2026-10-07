@@ -61,6 +61,24 @@
     var lastBiome = {}
 
     /*
+     * 收集进度的「上限」：本整合包内可记录的条目数，
+     * 来源是模组手册对应页的候选集合（可用 图鉴上限_查询.js 复核）：
+     *   群系 perform = level.registryAccess() 的 BIOME 注册表条目数 = 400
+     *   唱片 listen  = 带 minecraft:music_discs 标签的物品数
+     * 模组没给这两类设成就阈值，所以只显示「当前/上限」两档。
+     */
+    var MAX_BIOME = 400
+    var MAX_DISC = 106
+
+    /*
+     * 无目标值时的两档标记：当前 / 上限
+     *   §8(§a261§7/§f400§8)
+     */
+    function progressText(collected, max) {
+        return ' §8(§a' + collected + '§7/§f' + max + '§8)'
+    }
+
+    /*
      * ============================================================
      * 模组 capability 入口，用于把记录同步给客户端 UI
      *
@@ -158,20 +176,40 @@
      *   nbt_listened_discs_size = size + 1
      * ============================================================
      */
-    function addRecord(player, value) {
+    /*
+     * 添加一条记录。
+     *
+     * 返回值改为「该类记录写入后的条数」，便于提示里直接显示进度：
+     *   0 表示已存在（不重复写入）或失败
+     *   >0 表示写入成功，且等于「当前这一类」的记录数
+     * 注意本表把唱片与群系混在一起，所以进度要按前缀分别统计。
+     */
+    function addRecord(player, value, progressPrefix) {
         try {
             var data = getTraveller(player)
             var traveller = data.traveller
-            if (hasRecord(traveller, value)) return false
+            if (hasRecord(traveller, value)) return 0
 
             var size = traveller.contains(RECORD_SIZE, 3) ? traveller.getInt(RECORD_SIZE) : 0
             traveller.putString(RECORD_PREFIX + size, value)
             traveller.putInt(RECORD_SIZE, size + 1)
             saveTraveller(player, data)
-            return true
+
+            /*
+             * 写入成功后统计同类条数（按 value 前缀区分
+             * listen:item. / perform:biome.）。
+             */
+            var total = size + 1
+            var count = 0
+            for (var i = 0; i < total; i++) {
+                try {
+                    if (String(traveller.getString(RECORD_PREFIX + i)).indexOf(progressPrefix) === 0) count++
+                } catch (e2) { /* 跳过坏记录 */ }
+            }
+            return count
         } catch (e) {
             console.error('[孤独症] 更新玩家 ForgeCaps 失败：' + e)
-            return false
+            return 0
         }
     }
 
@@ -307,11 +345,12 @@
          * 即 listen:item.minecraft.music_disc_far。
          */
         var value = 'listen:item.' + itemId.replace(':', '.')
-        if (!addRecord(player, value)) return
+        var collected = addRecord(player, value, 'listen:item.')
+        if (collected === 0) return
 
         var name = getDiscName(item)
         console.info('[孤独症] ★ 发现新的唱片：' + itemId)
-        player.tell(Component.literal('§a[孤独症] §7发现新的唱片 §8» §f').append(name).append(Component.literal(' §8[' + itemId + ']')))
+        player.tell(Component.literal('§a[孤独症] §7发现新的唱片 §8» §f').append(name).append(Component.literal(' §8[' + itemId + ']')).append(Component.literal(progressText(collected, MAX_DISC))))
     }
 
     /*
@@ -355,11 +394,12 @@
          * 同样只保留 perform 与 biome 之间那一个冒号。
          */
         var value = 'perform:biome.' + biomeId.replace(':', '.')
-        if (!addRecord(player, value)) return
+        var collected = addRecord(player, value, 'perform:biome.')
+        if (collected === 0) return
 
         var name = getBiomeName(biomeId)
         console.info('[孤独症] ★ 发现新的生物群系：' + biomeId)
-        player.tell(Component.literal('§a[孤独症] §7发现新的生物群系 §8» §f').append(name).append(Component.literal(' §8[' + biomeId + ']')))
+        player.tell(Component.literal('§a[孤独症] §7发现新的生物群系 §8» §f').append(name).append(Component.literal(' §8[' + biomeId + ']')).append(Component.literal(progressText(collected, MAX_BIOME))))
     }
 
     /*

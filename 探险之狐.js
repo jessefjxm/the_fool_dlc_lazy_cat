@@ -65,6 +65,27 @@
     var RADIUS = 1
 
     /*
+     * 收集进度的「目标」：模组自己的成就阈值
+     *   FoxOfExplorationItem 里 getBonusCount(player) >= 256
+     */
+    var GOAL_COUNT = 256
+
+    /*
+     * 收集进度的「上限」：本整合包内可记录的结构总数，
+     * 来源是模组手册该页 —— StructureCatalogService.snapshot(server)
+     * 的 ids 数量（结构注册表去掉内部载体 + 外部 nbt 库），实测 668。
+     */
+    var MAX_COUNT = 668
+
+    /*
+     * 组装进度标记，三档：当前 / 目标 / 上限
+     *   §8(§a261§7/§e256§7/§f668§8)
+     */
+    function progressText(collected, goal, max) {
+        return ' §8(§a' + collected + '§7/§e' + goal + '§7/§f' + max + '§8)'
+    }
+
+    /*
      * --------------------------------------------------------
      * 判断 Structure 是否已经记录
      * --------------------------------------------------------
@@ -256,7 +277,7 @@
 
             if (addRecord(structures, structureId)) {
                 var name = getStructureName(structureId)
-                var message = Component.literal('§a[探险之狐] §7发现新的结构 §8» §f').append(name).append(Component.literal(' §8[' + structureId + ']'))
+                var message = Component.literal('§a[探险之狐] §7发现新的结构 §8» §f').append(name).append(Component.literal(' §8[' + structureId + ']')).append(Component.literal(progressText(structures.size(), GOAL_COUNT, MAX_COUNT)))
                 player.tell(message)
                 changed = true
             }

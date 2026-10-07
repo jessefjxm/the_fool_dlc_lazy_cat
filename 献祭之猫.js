@@ -56,6 +56,28 @@
     var SLOT_ID = 'skull'
 
     /*
+     * 收集进度的「上限」：本整合包内能收集到的记录总数，
+     * 来源是模组手册该页的候选集合 —— ManualCatalogFactory
+     * 把 ForgeRegistries.ITEMS 里 hasTag(ageofmythology:curios/skull)
+     * 的物品全部列出来，实测 951。
+     * 模组增删条目时改这里即可（可用 图鉴上限_查询.js 复核）。
+     */
+    var MAX_COUNT = 951
+
+    /*
+     * 组装进度标记，两档：当前 / 上限
+     *   §8(§a261§7/§f951§8)
+     * 当前亮绿=已记录遗物条数，上限白色=整合包内可收集的总数。
+     *
+     * 注意：CatOfSacrificeItem.bonus_count（12）虽然存在，
+     * 但它是「佩戴超过 12 个遗物时加成翻倍」的机制阈值，
+     * 与收集数量不是同一个维度，因此不在提示里显示中间档。
+     */
+    function progressText(collected, max) {
+        return ' §8(§a' + collected + '§7/§f' + max + '§8)'
+    }
+
+    /*
      * ------------------------------------------------------------
      * 获取物品本地化名称
      *
@@ -173,10 +195,10 @@
         syncCapability(player)
 
         /*
-         * 提示玩家
+         * 提示玩家（末尾括号是收集进度）
          */
         var itemName = getItemName(itemId)
-        var message = Component.literal('§a[献祭之猫] §7发现新的遗物 §8» §f').append(itemName).append(Component.literal(' §8[' + itemId + ']'))
+        var message = Component.literal('§a[献祭之猫] §7发现新的遗物 §8» §f').append(itemName).append(Component.literal(' §8[' + itemId + ']')).append(Component.literal(progressText(items.size(), MAX_COUNT)))
         player.tell(message)
     }
 

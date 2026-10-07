@@ -63,6 +63,26 @@
     var RECORD_LIST = 'nbt_damage_type'
 
     /*
+     * 收集进度的「目标」：模组自己的成就阈值
+     *   CatOfTenacityItem 里 getBonusCount(player) >= 64
+     */
+    var GOAL_COUNT = 64
+
+    /*
+     * 收集进度的「上限」：本整合包内可记录的伤害类型总数，
+     * 来源是模组手册该页 —— level.registryAccess() 的 DAMAGE_TYPE 注册表，实测 293。
+     */
+    var MAX_COUNT = 293
+
+    /*
+     * 组装进度标记，三档：当前 / 目标 / 上限
+     *   §8(§a261§7/§e64§7/§f293§8)
+     */
+    function progressText(collected, goal, max) {
+        return ' §8(§a' + collected + '§7/§e' + goal + '§7/§f' + max + '§8)'
+    }
+
+    /*
      * ============================================================
      * 获取完整伤害类型 ID
      *
@@ -176,6 +196,7 @@
         }
 
         message.append(Component.literal(' §8[' + damageTypeId + ']'))
+        message.append(Component.literal(progressText(damageTypes.size(), GOAL_COUNT, MAX_COUNT)))
         player.tell(message)
         console.info('[坚韧之猫] 已记录新伤害类型：' + damageTypeId)
 

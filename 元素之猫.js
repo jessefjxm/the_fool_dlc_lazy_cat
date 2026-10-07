@@ -129,17 +129,30 @@
     var FIXED_VALUE = 5.0
 
     /*
-     * 三大系的实体标签：键为日志用的中文名，值为标签 id。
+     * 三大系的实体标签：键为日志用的中文名，值为标签 id，
+     * 第三个元素是该系在当前整合包里的条目数（进度显示的上限）。
      * 值前面的 # 只是可读性写法，解析时会去掉。
+     * 上限可用 元素之猫_查询.js 的 /aomaffinity 复核。
      */
     var AFFINITY_TAGS = [
-        ['火系', '#ageofmythology:fire'],
-        ['深渊系', '#ageofmythology:abyss'],
-        ['岩系', '#ageofmythology:geomancy']
+        ['火系', '#ageofmythology:fire', 35],
+        ['深渊系', '#ageofmythology:abyss', 31],
+        ['岩系', '#ageofmythology:geomancy', 20]
     ]
 
     var tagKeyCache = {}
     var tagSetCache = {}
+
+    /*
+     * 组装进度标记，两档：当前 / 上限
+     *   §8(§a5§7/§f35§8)
+     * 当前亮绿=该系已记录的怪物种类数，
+     * 上限白色=该系在当前整合包里的怪物总数。
+     * 模组对亲和表没有成就阈值（每个怪物各自 5.0 封顶），所以不放中间值。
+     */
+    function progressText(collected, max) {
+        return ' §8(§a' + collected + '§7/§f' + max + '§8)'
+    }
 
     /*
      * ------------------------------------------------------------
@@ -234,9 +247,44 @@
         var set = collectTagSet(id)
         for (var i = 0; i < AFFINITY_TAGS.length; i++) {
             var tagKey = resolveTagKey(AFFINITY_TAGS[i][1])
-            if (tagKey !== null && set[String(tagKey.location())] === true) return AFFINITY_TAGS[i][0]
+            if (tagKey !== null && set[String(tagKey.location())] === true) {
+                return { label: AFFINITY_TAGS[i][0], tagId: AFFINITY_TAGS[i][1], max: AFFINITY_TAGS[i][2] }
+            }
         }
         return null
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * 统计该系已记录的怪物种类数（进度里的「当前」）
+     *
+     * nbt_earth_affinity_map 是三系共用的一张表，
+     * 所以必须按标签分别统计：逐条取 entityType，
+     * 判断它是否属于该系标签。
+     * ------------------------------------------------------------
+     */
+    function collectedInTag(player, tagId) {
+        var tagKey = resolveTagKey(tagId)
+        if (tagKey === null) return 0
+        var count = 0
+        try {
+            var playerNbt = player.getNbt()
+            var forgeCaps = playerNbt.contains('ForgeCaps', 10) ? playerNbt.getCompound('ForgeCaps') : null
+            var traveller = forgeCaps !== null && forgeCaps.contains('ageofmythology:traveller', 10) ? forgeCaps.getCompound('ageofmythology:traveller') : null
+            var list = traveller !== null && traveller.contains('nbt_earth_affinity_map', 9) ? traveller.getList('nbt_earth_affinity_map', 10) : null
+            if (list === null) return 0
+            var target = String(tagKey.location())
+            for (var i = 0; i < list.size(); i++) {
+                try {
+                    var id = list.getCompound(i).getString('entityType')
+                    if (id === null || id.length === 0) continue
+                    if (collectTagSet(id)[target] === true) count++
+                } catch (e) { /* 跳过坏记录 */ }
+            }
+        } catch (e2) {
+            console.error('[元素之猫] 统计该系已记录条数失败：' + e2)
+        }
+        return count
     }
 
     /*
@@ -398,9 +446,13 @@
 
         if (!recordAffinity(player, entityId)) return
 
-        var message = Component.literal('§a[元素之猫] §7记录' + affinity + '生物 §8» §f').append(getEntityName(entityId)).append(Component.literal(' §8[' + entityId + ']'))
+        /*
+         * 进度显示：当前=该系已记录怪物种类数，上限=该系在当前整合包里的怪物总数。
+         */
+        var collected = collectedInTag(player, affinity.tagId)
+        var message = Component.literal('§a[元素之猫] §7记录' + affinity.label + '生物 §8» §f').append(getEntityName(entityId)).append(Component.literal(' §8[' + entityId + ']')).append(Component.literal(progressText(collected, affinity.max)))
         player.tell(message)
-        console.log('[元素之猫] 玩家 ' + String(player.username) + ' 击杀' + affinity + '生物：' + entityId)
+        console.log('[元素之猫] 玩家 ' + String(player.username) + ' 击杀' + affinity.label + '生物：' + entityId + '（进度 ' + collected + '/' + affinity.max + '）')
     }
 
     /*

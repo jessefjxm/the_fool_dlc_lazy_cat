@@ -72,6 +72,26 @@
     var ENCHANTED_BOOK_ID = 'minecraft:enchanted_book'
     var STORED_ENCHANTMENTS = 'StoredEnchantments'
     var TRAVELLER_CAP = 'ageofmythology:traveller'
+
+    /*
+     * 收集进度的「目标」：模组自己的成就阈值
+     *   CatOfDragonBookItem 里 getBonusCount(player) >= 128
+     */
+    var GOAL_COUNT = 128
+
+    /*
+     * 收集进度的「上限」：本整合包内可记录的附魔总数，
+     * 来源是模组手册该页 —— BuiltInRegistries.ENCHANTMENT 全部条目，实测 169。
+     */
+    var MAX_COUNT = 169
+
+    /*
+     * 组装进度标记，三档：当前 / 目标 / 上限
+     *   §8(§a261§7/§e128§7/§f169§8)
+     */
+    function progressText(collected, goal, max) {
+        return ' §8(§a' + collected + '§7/§e' + goal + '§7/§f' + max + '§8)'
+    }
     var RECORD_LIST = 'nbt_enhancement_book'
 
     /*
@@ -233,7 +253,7 @@
              *   §f  附魔本地化名称
              */
             var enchantmentName = getEnchantmentName(enchantmentId)
-            var message = Component.literal('§a[书龙之猫] §7发现新的附魔 §8» §f').append(enchantmentName).append(Component.literal(' §8[' + enchantmentId + ']'))
+            var message = Component.literal('§a[书龙之猫] §7发现新的附魔 §8» §f').append(enchantmentName).append(Component.literal(' §8[' + enchantmentId + ']')).append(Component.literal(progressText(books.size(), GOAL_COUNT, MAX_COUNT)))
             player.tell(message)
 
             console.info('[书龙之猫] 已记录新附魔：' + enchantmentId)

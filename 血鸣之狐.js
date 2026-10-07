@@ -90,6 +90,27 @@
     var RECORD_LIST = 'nbt_blood_fox_item'
 
     /*
+     * 收集进度的「目标」：模组自己的成就阈值
+     *   FoxOfBloodEchoItem 里 getBonusCount(player) >= 32
+     */
+    var GOAL_COUNT = 32
+
+    /*
+     * 收集进度的「上限」：本整合包内可作为营火原料的物品数。
+     * 由本脚本的配方扫描结果决定（营火 Ingredient 去重后可匹配的物品数），
+     * 与 reload 后的汇总日志一致，实测 103。
+     */
+    var MAX_COUNT = 103
+
+    /*
+     * 组装进度标记，三档：当前 / 目标 / 上限
+     *   §8(§a261§7/§e32§7/§f103§8)
+     */
+    function progressText(collected, goal, max) {
+        return ' §8(§a' + collected + '§7/§e' + goal + '§7/§f' + max + '§8)'
+    }
+
+    /*
      * 保存所有营火配方的 Ingredient。
      *
      * 保留 Minecraft 原生 Ingredient 进行匹配，这样可以自动处理：
@@ -375,7 +396,7 @@
          * 提示玩家发现新的营火原料。
          */
         var itemName = getItemName(item)
-        var message = Component.literal('§a[血鸣之狐] §7发现新的营火原料 §8» §f').append(itemName).append(Component.literal(' §8[' + itemId + ']'))
+        var message = Component.literal('§a[血鸣之狐] §7发现新的营火原料 §8» §f').append(itemName).append(Component.literal(' §8[' + itemId + ']')).append(Component.literal(progressText(items.size(), GOAL_COUNT, MAX_COUNT)))
         player.tell(message)
     }
 

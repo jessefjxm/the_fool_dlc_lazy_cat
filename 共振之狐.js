@@ -57,6 +57,27 @@
 
     var TRAVELLER_CAP = 'ageofmythology:traveller'
     var RECORD_LIST = 'nbt_resonance_fox_item'
+
+    /*
+     * 收集进度的「目标」：模组自己的成就阈值
+     *   FoxOfResonanceItem 里 getBonusCount(player) >= 128
+     */
+    var GOAL_COUNT = 128
+
+    /*
+     * 收集进度的「上限」：本整合包内可作为 Create 加工原料的物品数。
+     * 由本脚本的配方扫描结果决定（create:milling / create:crushing 的
+     * Ingredient 展开后去重的物品数），实测 301。
+     */
+    var MAX_COUNT = 301
+
+    /*
+     * 组装进度标记，三档：当前 / 目标 / 上限
+     *   §8(§a261§7/§e128§7/§f301§8)
+     */
+    function progressText(collected, goal, max) {
+        return ' §8(§a' + collected + '§7/§e' + goal + '§7/§f' + max + '§8)'
+    }
     var RECIPE_TYPES = { 'create:milling': true, 'create:crushing': true }
     var millingCount = 0
     var crushingCount = 0
@@ -327,7 +348,7 @@
             syncCapability(player)
 
             var name = getItemName(item)
-            var message = Component.literal('§a[共振之狐] §7发现新的加工原料 §8» §f').append(name).append(Component.literal(' §8[' + itemId + ']'))
+            var message = Component.literal('§a[共振之狐] §7发现新的加工原料 §8» §f').append(name).append(Component.literal(' §8[' + itemId + ']')).append(Component.literal(progressText(list.size(), GOAL_COUNT, MAX_COUNT)))
             player.tell(message)
         } catch (e) {
             console.error('[共振之狐] 更新玩家 ForgeCaps 失败：' + e)

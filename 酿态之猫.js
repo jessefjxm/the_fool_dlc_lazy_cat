@@ -78,6 +78,26 @@
     var RECORD_LIST = 'nbt_effect_type'
 
     /*
+     * 收集进度的「目标」：模组自己的成就阈值
+     *   CatOfBrewingItem 里 getBonusCount(player) >= 128
+     */
+    var GOAL_COUNT = 128
+
+    /*
+     * 收集进度的「上限」：本整合包内可记录的 Buff 总数，
+     * 来源是模组手册该页 —— ForgeRegistries.MOB_EFFECTS 全部条目，实测 671。
+     */
+    var MAX_COUNT = 671
+
+    /*
+     * 组装进度标记，三档：当前 / 目标 / 上限
+     *   §8(§a261§7/§e128§7/§f671§8)
+     */
+    function progressText(collected, goal, max) {
+        return ' §8(§a' + collected + '§7/§e' + goal + '§7/§f' + max + '§8)'
+    }
+
+    /*
      * ============================================================
      * 获取完整 MobEffect 注册 ID
      *
@@ -212,6 +232,7 @@
         }
 
         message.append(Component.literal(' §8[' + effectTypeId + ']'))
+        message.append(Component.literal(progressText(effectTypes.size(), GOAL_COUNT, MAX_COUNT)))
         player.tell(message)
 
         console.info('[酿态之猫] 已记录新 Buff：' + effectTypeId)

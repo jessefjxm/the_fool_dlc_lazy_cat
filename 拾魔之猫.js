@@ -48,6 +48,33 @@
     var ORB_TAG = 'irons_spellbooks:upgrade_orb_type'
 
     /*
+     * 收集进度的「目标」：直接采用模组自己的成就阈值，不自己造数字。
+     *   CatOfManaItem.getUpgradeOrbCount(player) >= 12
+     *   CatOfManaItem.getScrollCount(player)   >= 128
+     * 本脚本有两个不同类别，所以各自用自己的阈值。
+     */
+    var GOAL_ORB = 12
+    var GOAL_SCROLL = 128
+
+    /*
+     * 收集进度的「上限」：本整合包内能收集到的记录总数，
+     * 来源是模组手册对应页的候选集合（可用 图鉴上限_查询.js 复核）：
+     *   升级法球 = ForgeRegistries.ITEMS 里 instanceof UpgradeOrbItem = 14
+     *   法术卷轴 = irons_spellbooks SpellRegistry.getEnabledSpells() = 198
+     */
+    var MAX_ORB = 14
+    var MAX_SCROLL = 198
+
+    /*
+     * 组装进度标记，三档：当前 / 目标 / 上限
+     *   §8(§a261§7/§e12§7/§f951§8)
+     * 括号深灰弱化；当前亮绿、目标亮金（模组成就阈值）、上限白色（整合包理论上限）。
+     */
+    function progressText(collected, goal, max) {
+        return ' §8(§a' + collected + '§7/§e' + goal + '§7/§f' + max + '§8)'
+    }
+
+    /*
      * --------------------------------------------------------
      * 获取 ID 的本地化名称
      *
@@ -165,7 +192,7 @@
                 traveller.put('nbt_spell_scroll', spells)
 
                 var spellName = getSpellName(spellId)
-                var message = Component.literal('§a[拾魔之猫] §7发现新的法术 §8» §f').append(spellName).append(Component.literal(' §8[' + spellId + ']'))
+                var message = Component.literal('§a[拾魔之猫] §7发现新的法术 §8» §f').append(spellName).append(Component.literal(' §8[' + spellId + ']')).append(Component.literal(progressText(spells.size(), GOAL_SCROLL, MAX_SCROLL)))
                 player.tell(message)
 
                 changed = true
@@ -184,7 +211,7 @@
                 traveller.put('nbt_upgrade_orb', orbs)
 
                 var itemName = getItemName(itemId)
-                var message = Component.literal('§a[拾魔之猫] §7发现新的升级法球 §8» §f').append(itemName).append(Component.literal(' §8[' + itemId + ']'))
+                var message = Component.literal('§a[拾魔之猫] §7发现新的升级法球 §8» §f').append(itemName).append(Component.literal(' §8[' + itemId + ']')).append(Component.literal(progressText(orbs.size(), GOAL_ORB, MAX_ORB)))
                 player.tell(message)
 
                 changed = true

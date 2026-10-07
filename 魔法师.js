@@ -210,7 +210,10 @@
 
     /*
      * ------------------------------------------------------------
-     * 返回命中的学派名称，未命中返回 null
+     * 返回命中的学派信息 { label, tagId }，未命中返回 null
+     *
+     * tagId 一并返回，供收集进度统计按系分别计数
+     * （两个系共用同一张 nbt_magic_skills 表，必须知道是哪一系）。
      * ------------------------------------------------------------
      */
     function resolveAffinity(id) {
@@ -218,9 +221,87 @@
         var set = collectTagSet(id)
         for (var i = 0; i < AFFINITY_TAGS.length; i++) {
             var tagKey = resolveTagKey(AFFINITY_TAGS[i][1])
-            if (tagKey !== null && set[String(tagKey.location())] === true) return AFFINITY_TAGS[i][0]
+            if (tagKey !== null && set[String(tagKey.location())] === true) {
+                return { label: AFFINITY_TAGS[i][0], tagId: AFFINITY_TAGS[i][1] }
+            }
         }
         return null
+    }
+
+    /*
+     * ============================================================
+     * 收集进度统计
+     *
+     * 分母：该标签在当前整合包里一共有多少种生物，运行时用标签
+     *       数出来（遍历注册表 + getTags 比对），而不是写死 37/59
+     *       —— 模组增删条目时进度会自动跟随。
+     *       只在第一次用到某个标签时算一遍，结果缓存。
+     * 分子：玩家 nbt_magic_skills 里已经有记录的、且属于该标签的条数。
+     *       （nbt_magic_skills 是魔法系与巫法系共用的一张表，
+     *         所以必须按标签分别统计，不能直接取列表长度。）
+     * ============================================================
+     */
+    var tagEntityTotals = {}
+
+    function tagTotal(tagId) {
+        if (tagEntityTotals[tagId] !== undefined) return tagEntityTotals[tagId]
+        var total = 0
+        try {
+            var tagKey = resolveTagKey(tagId)
+            if (tagKey !== null) {
+                var keys = BuiltInRegistries.ENTITY_TYPE.keySet().toArray()
+                for (var i = 0; i < keys.length; i++) {
+                    try {
+                        var type = BuiltInRegistries.ENTITY_TYPE.get(keys[i])
+                        if (type === null) continue
+                        var tags = type.getTags().toArray()
+                        for (var k = 0; k < tags.length; k++) {
+                            if (String(tags[k].location()) === String(tagKey.location())) {
+                                total++
+                                break
+                            }
+                        }
+                    } catch (e) {
+                        /* 单个实体查询失败就跳过，不影响总数 */
+                    }
+                }
+            }
+        } catch (e2) {
+            console.error('[魔法师] 统计标签条目数失败：' + tagId + '，错误：' + e2)
+        }
+        tagEntityTotals[tagId] = total
+        return total
+    }
+
+    /*
+     * 统计玩家记录列表里、属于该标签的条数（分子）
+     */
+    function collectedInTag(list, tagId) {
+        var tagKey = resolveTagKey(tagId)
+        if (tagKey === null) return 0
+        var count = 0
+        for (var i = 0; i < list.size(); i++) {
+            try {
+                var id = list.getCompound(i).getString(ENTITY_TYPE_KEY)
+                if (id === null || id.length === 0) continue
+                var set = collectTagSet(id)
+                if (set[String(tagKey.location())] === true) count++
+            } catch (e) {
+                console.error('[魔法师] 统计已收集条目失败 #' + i + '：' + e)
+            }
+        }
+        return count
+    }
+
+    /*
+     * 组装进度标记，两档：当前 / 上限
+     *   §8(§a5§7/§f37§8)
+     * 当前亮绿=已记录怪物种类数，
+     * 上限白色=该系在当前整合包里的怪物总数（标签条目数）。
+     * 模组对这个字段没有成就阈值（每种生物各自 5.0 封顶），所以不放中间值。
+     */
+    function progressText(collected, max) {
+        return ' §8(§a' + collected + '§7/§f' + max + '§8)'
     }
 
     /*
@@ -314,12 +395,15 @@
      * value 规则：不足 5 补到 5，已经 >= 5 保持原值（不降级）。
      * 列表里没有该 entityType 就追加一条；有则按上面的规则更新。
      *
+     * 返回 { changed: 是否真的写入, collected: 该系已收集, total: 该系总数 }，
+     * 后两项用于给玩家显示收集进度。
+     *
      * 显式逐层写回 traveller -> ForgeCaps -> playerNbt，
      * 避免 ForgeCaps 或 traveller 原本不存在时，
      * 新创建的 CompoundTag 没有真正挂回玩家 NBT。
      * ------------------------------------------------------------
      */
-    function recordAffinity(player, entityId) {
+    function recordAffinity(player, entityId, tagId) {
         var playerNbt = player.getNbt()
         var forgeCaps = playerNbt.contains(FORGE_CAPS, 10) ? playerNbt.getCompound(FORGE_CAPS) : new CompoundTag()
         var traveller = forgeCaps.contains(TRAVELLER_CAP, 10) ? forgeCaps.getCompound(TRAVELLER_CAP) : new CompoundTag()
@@ -335,7 +419,12 @@
             }
         }
         var next = Math.max(current, MIN_VALUE)
-        if (index >= 0 && next <= current) return false
+        if (index >= 0 && next <= current) {
+            /*
+             * 已经 >= 5，不写、不降级、也不重复提示。
+             */
+            return { changed: false, collected: collectedInTag(list, tagId), total: tagTotal(tagId) }
+        }
 
         var record = new CompoundTag()
         record.putString(ENTITY_TYPE_KEY, entityId)
@@ -365,7 +454,9 @@
          */
         try {
             var data = CapabilityUtil.getCapability(player, PlayerDataCapability.INSTANCE)
-            if (data === null) return true
+            if (data === null) {
+                return { changed: true, collected: collectedInTag(list, tagId), total: tagTotal(tagId) }
+            }
             data.getExtraInfo().magic_skills.put(BuiltInRegistries.ENTITY_TYPE.get(ResourceLocation.parse(entityId)), next)
             /*
              * sync 会重发 capability 数据包，让客户端 UI 立即刷新。
@@ -374,7 +465,7 @@
         } catch (e2) {
             console.error('[魔法师] 同步 capability 失败（NBT 已写入，功能不受影响）：' + e2)
         }
-        return true
+        return { changed: true, collected: collectedInTag(list, tagId), total: tagTotal(tagId) }
     }
 
     /*
@@ -406,11 +497,20 @@
         var player = resolveKiller(source, entity)
         if (player === null) return
 
-        if (!recordAffinity(player, entityId)) return
+        var result = recordAffinity(player, entityId, affinity.tagId)
+        if (!result.changed) return
 
-        var message = Component.literal('§a[魔法师] §7记录' + affinity + '生物 §8» §f').append(getEntityName(entityId)).append(Component.literal(' §8[' + entityId + ']'))
+        /*
+         * 提示文本（配色与模组一致：§a 亮点 / §7 灰字 / §8 深灰弱化）：
+         *   §a[魔法师] §7记录§a魔法系§7生物 §8» §f<名称> §8[<id>] §8(§a5§7/§f37§8)
+         * 末尾括号是收集进度：分子绿色=已收集，分母白色=该系总数。
+         */
+        var message = Component.literal('§a[魔法师] §7记录§a' + affinity.label + '§7生物 §8» §f')
+            .append(getEntityName(entityId))
+            .append(Component.literal(' §8[' + entityId + ']'))
+            .append(Component.literal(progressText(result.collected, result.total)))
         player.tell(message)
-        console.log('[魔法师] 玩家 ' + String(player.username) + ' 击杀' + affinity + '生物：' + entityId)
+        console.log('[魔法师] 玩家 ' + String(player.username) + ' 击杀' + affinity.label + '生物：' + entityId + '（进度 ' + result.collected + '/' + result.total + '）')
     }
 
     /*

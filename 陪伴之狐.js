@@ -57,6 +57,27 @@
     var MAX_DISTANCE = 64.0
 
     /*
+     * 收集进度的「目标」：模组自己的成就阈值
+     *   FoxOfCompanionItem 里 getBonusCount(player) >= 256
+     */
+    var GOAL_COUNT = 256
+
+    /*
+     * 收集进度的「上限」：本整合包内可记录的生物总数，
+     * 来源是模组手册该页 —— CompanionRecordCatalog.canRecord
+     * （即 DefaultAttributes.hasDefaultAttributes）筛出的实体数，实测 986。
+     */
+    var MAX_COUNT = 986
+
+    /*
+     * 组装进度标记，三档：当前 / 目标 / 上限
+     *   §8(§a261§7/§e256§7/§f986§8)
+     */
+    function progressText(collected, goal, max) {
+        return ' §8(§a' + collected + '§7/§e' + goal + '§7/§f' + max + '§8)'
+    }
+
+    /*
      * ------------------------------------------------------------
      * 获取实体本地化名称
      *
@@ -171,7 +192,7 @@
 
         // 提示玩家
         var entityName = getEntityName(entityId)
-        var message = Component.literal('§a[陪伴之狐] §7发现新的生物 §8» §f').append(entityName).append(Component.literal(' §8[' + entityId + ']'))
+        var message = Component.literal('§a[陪伴之狐] §7发现新的生物 §8» §f').append(entityName).append(Component.literal(' §8[' + entityId + ']')).append(Component.literal(progressText(records.size(), GOAL_COUNT, MAX_COUNT)))
         player.tell(message)
     }
 

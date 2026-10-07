@@ -68,6 +68,26 @@
     var RECORD_LIST = 'nbt_gluttony_fox_eat_block'
 
     /*
+     * 收集进度的「目标」：模组自己的成就阈值
+     *   FoxOfGluttonyItem 里 getBonusCount(player) >= 32
+     */
+    var GOAL_COUNT = 32
+
+    /*
+     * 收集进度的「上限」：本整合包内可吞噬的方块总数，
+     * 来源是模组手册该页 —— forge:ores 方块标签成员 53 + 空气 1 = 54。
+     */
+    var MAX_COUNT = 54
+
+    /*
+     * 组装进度标记，三档：当前 / 目标 / 上限
+     *   §8(§a261§7/§e32§7/§f54§8)
+     */
+    function progressText(collected, goal, max) {
+        return ' §8(§a' + collected + '§7/§e' + goal + '§7/§f' + max + '§8)'
+    }
+
+    /*
      * 支持的矿石标签。
      *
      * forge:ores：
@@ -265,7 +285,7 @@
          * 提示玩家。
          */
         var blockName = getBlockName(blockId)
-        var message = Component.literal('§a[贪食之狐] §7发现新的矿物方块 §8» §f').append(blockName).append(Component.literal(' §8[' + blockId + ']'))
+        var message = Component.literal('§a[贪食之狐] §7发现新的矿物方块 §8» §f').append(blockName).append(Component.literal(' §8[' + blockId + ']')).append(Component.literal(progressText(data.list.size(), GOAL_COUNT, MAX_COUNT)))
         player.tell(message)
 
         console.log('[贪食之狐] 玩家 ' + String(player.username) + ' 发现矿物：' + blockId + '，desc=' + desc)

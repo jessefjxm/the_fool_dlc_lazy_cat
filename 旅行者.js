@@ -70,6 +70,21 @@
     var lastBiome = {}
 
     /*
+     * 收集进度的「上限」：本整合包内可访问的生物群系总数，
+     * 来源是模组手册该页 —— level.registryAccess() 的 BIOME 注册表条目数，实测 400。
+     * 模组没给这一类设成就阈值，所以只显示「当前/上限」两档。
+     */
+    var MAX_BIOME = 400
+
+    /*
+     * 无目标值时的两档标记：当前 / 上限
+     *   §8(§a261§7/§f400§8)
+     */
+    function progressText(collected, max) {
+        return ' §8(§a' + collected + '§7/§f' + max + '§8)'
+    }
+
+    /*
      * ============================================================
      * 获取玩家 ForgeCaps.Traveller 数据
      * ============================================================
@@ -198,6 +213,36 @@
 
     /*
      * ============================================================
+     * 统计玩家已记录的不同生物群系个数
+     *
+     * 本表按「维度 + 群系」存 7 份记录（见 addBiomeRecords），
+     * 所以不能直接取 size，必须把群系 id 去重后再数。
+     * 记录格式：<维度>:biome.<命名空间>.<路径>
+     * ============================================================
+     */
+    function countRecordedBiomes(player) {
+        try {
+            var data = getTraveller(player)
+            var traveller = data.traveller
+            var size = traveller.contains(RECORD_SIZE, 3) ? traveller.getInt(RECORD_SIZE) : 0
+            var seen = {}
+            for (var i = 0; i < size; i++) {
+                try {
+                    var raw = String(traveller.getString(RECORD_PREFIX + i))
+                    var at = raw.indexOf('biome.')
+                    if (at < 0) continue
+                    var biomeId = raw.substring(at + 'biome.'.length)
+                    seen[biomeId] = true
+                } catch (e) { /* 跳过坏记录 */ }
+            }
+            return Object.keys(seen).length
+        } catch (e2) {
+            console.error('[旅行者] 统计已记录群系失败：' + e2)
+            return 0
+        }
+    }
+
+    /*
      * 处理玩家进入新的生物群系
      *
      * 每次发现新的 Biome：
@@ -219,7 +264,7 @@
 
         var name = getBiomeName(biomeId)
         console.info('[旅行者] ★ 发现新的生物群系：' + biomeId)
-        player.tell(Component.literal('§a[旅行者] §7发现新的生物群系 §8» §f').append(name).append(Component.literal(' §8[' + biomeId + ']')))
+        player.tell(Component.literal('§a[旅行者] §7发现新的生物群系 §8» §f').append(name).append(Component.literal(' §8[' + biomeId + ']')).append(Component.literal(progressText(countRecordedBiomes(player), MAX_BIOME))))
     }
 
     /*

@@ -56,6 +56,9 @@ global.hover = (function () {
         StyleClass !== null && ItemsClass !== null && ItemStackClass !== null &&
         BuiltInRegistriesClass !== null && ResourceLocationClass !== null)
 
+    /* 没有可用 NBT 设置方法时只提示一次，避免刷屏 */
+    var warnedNoNbt = false
+
     /*
      * 由物品 id 构造原生 ItemStack。
      *
@@ -139,8 +142,12 @@ global.hover = (function () {
     /*
      * 物品悬停：component 上挂 show_item
      *
-     * nbt 可以省略（传 null）。传了就给原生栈 setTag，
-     * 这样 tooltip 会带上附魔、自定义名称等 NBT 内容。
+     * nbt 可以省略（传 null）。传了就给原生栈套上 NBT，
+     * 这样 tooltip 会带上附魔、自定义名称等内容。
+     *
+     * 注意方法名：本环境里 KubeJS 只暴露「Nbt 命名」那一套
+     * （setNbt / getNbt / getOrCreateTag / getTagElement），
+     * setTag / getTag 是 undefined —— 见下面 hoverItemWithSnbt 的注释。
      */
     function hoverItem(component, itemId, nbt) {
         if (!ready) return component
@@ -157,7 +164,7 @@ global.hover = (function () {
             if (hasTag && TagParser !== null) {
                 try {
                     var tag = TagParser.parseTag(String(nbt))
-                    if (tag !== null) stack.setTag(tag)
+                    if (tag !== null) applyNbt(stack, tag)
                 } catch (eNbt) {
                     /* NBT 套不上不影响悬停，忽略 */
                 }
@@ -172,6 +179,30 @@ global.hover = (function () {
     }
 
     /*
+     * 给原生 ItemStack 套 NBT。
+     *
+     * 候选顺序：setNbt（本环境可用）-> setTag -> setTagRaw。
+     * 全部失败时只提示一次，避免刷屏。
+     */
+    function applyNbt(stack, tag) {
+        if (stack === null || tag === null) return false
+        var candidates = ['setNbt', 'setTag', 'setTagRaw']
+        for (var i = 0; i < candidates.length; i++) {
+            try {
+                if (typeof stack[candidates[i]] === 'function') {
+                    stack[candidates[i]](tag)
+                    return true
+                }
+            } catch (e) { /* 试下一个 */ }
+        }
+        if (!warnedNoNbt) {
+            warnedNoNbt = true
+            console.error('[悬停工具] 当前环境没有可用的 NBT 设置方法，带 NBT 的悬停卡片会退化为无 NBT 版本。')
+        }
+        return false
+    }
+
+    /*
      * 物品悬停（SNBT 字符串版）
      *
      * 与 hoverItem 的区别：NBT 直接给 SNBT 文本，由这里解析成 CompoundTag。
@@ -179,50 +210,39 @@ global.hover = (function () {
      *   法术卷轴  {Count:1b,id:"irons_spellbooks:scroll",tag:{...spell_container...}}
      *   附魔书    {Count:1b,id:"minecraft:enchanted_book",tag:{StoredEnchantments:[...]}}
      *
-     * 关键：不能走「new ItemStack(item) 再 setTag」——
-     *   KubeJS 侧对 new 出来的栈取不到 setTag（报
-     *   Cannot find function setTag in object 1 scroll），
-     * 所以改用静态工厂 ItemStack.of(CompoundTag)，
-     * 它会把 id / Count / tag 一次性解析成完整的 ItemStack。
+     * 这个环境里实测（/aomhoverapi）：
+     *   ItemStack.of(CompoundTag)  -> 重载歧义，不可用
+     *     （EndingLibrary 通过 mixin 往 ItemStack 注入了同名 of(ItemStack)）
+     *   实例方法可用的是「Nbt 命名」那一套：
+     *     setNbt=getNbt=getOrCreateTag=getTagElement=addTagElement=function
+     *   而 setTag / getTag 是 undefined（KubeJS 只暴露 Nbt 命名）
+     *
+     * 所以正确写法是：取到原生栈后调 setNbt(tag)，而不是 setTag。
      * ------------------------------------------------------------
      */
-    function stackFromSnbt(itemSnbt) {
-        if (TagParser === null || ItemStackClass === null) return null
-        try {
-            var parsed = TagParser.parseTag(String(itemSnbt))
-            if (parsed === null) return null
-            /* 首选：静态工厂，直接把整个物品 NBT 还原成栈 */
-            var viaFactory = ItemStackClass.of(parsed)
-            if (viaFactory !== null && viaFactory !== undefined && !viaFactory.isEmpty()) return viaFactory
-        } catch (e) {
-            console.error('[悬停工具] ItemStack.of(SNBT) 失败：' + e)
-        }
-        return null
-    }
 
     function hoverItemWithSnbt(component, itemId, itemSnbt) {
         if (!ready) return component
         try {
-            /* 首选：静态工厂还原完整物品（含 NBT） */
-            var stack = stackFromSnbt(itemSnbt)
+            /*
+             * 主路径：原生栈 + setNbt。
+             *
+             * 实测可用的是 Nbt 命名那一套（setNbt / getNbt /
+             * getOrCreateTag / getTagElement / addTagElement），
+             * setTag / getTag 在 KubeJS 侧是 undefined。
+             * 所以 setNbt 放在第一位，其余只作兼容候选。
+             */
+            var stack = nativeStackOf(itemId)
+            if (stack === null) return component
 
-            /* 退路：基础物品 + 尽量套上 NBT */
-            if (stack === null) {
-                stack = nativeStackOf(itemId)
-                if (stack === null) return component
-                if (TagParser !== null) {
-                    try {
-                        var parsed = TagParser.parseTag(String(itemSnbt))
-                        if (parsed !== null && parsed.contains('tag')) {
-                            var tag = parsed.getCompound('tag')
-                            /* setTag / setNbt 都可能缺失，逐个试，失败也不影响卡片主体 */
-                            if (typeof stack.setTag === 'function') stack.setTag(tag)
-                            else if (typeof stack.setNbt === 'function') stack.setNbt(tag)
-                            else console.error('[悬停工具] 该栈没有可用的 NBT 设置方法，卡片将不含 NBT')
-                        }
-                    } catch (eTag) {
-                        console.error('[悬停工具] 套用 SNBT 失败：' + eTag)
+            if (TagParser !== null) {
+                try {
+                    var parsed = TagParser.parseTag(String(itemSnbt))
+                    if (parsed !== null && parsed.contains('tag')) {
+                        applyNbt(stack, parsed.getCompound('tag'))
                     }
+                } catch (eTag) {
+                    console.error('[悬停工具] 套用 SNBT 失败：' + eTag)
                 }
             }
 
@@ -230,7 +250,6 @@ global.hover = (function () {
             return applyHover(component, new HoverEventClass(HoverAction.SHOW_ITEM, info))
         } catch (e) {
             console.error('[悬停工具] 构造 SNBT 物品悬停失败（' + itemId + '）：' + e)
-            probeStackMethods(itemId)
             return component
         }
     }
@@ -272,8 +291,7 @@ global.hover = (function () {
 
     /*
      * 诊断：打印某个 native ItemStack 上到底有哪些 NBT 相关方法可用。
-     * 用来定位「Cannot find function setTag」这类缺方法问题。
-     * 正常运行时不会输出，只在 SNBT 通道失败后由调用方触发。
+     * 只在排查「取不到某个方法」时手动调用，正常运行不输出。
      */
     function probeStackMethods(itemId) {
         try {
@@ -288,14 +306,6 @@ global.hover = (function () {
                 result.push(names[i] + '=' + (typeof stack[names[i]]))
             }
             console.info('[悬停工具诊断] ' + itemId + ' 方法探测: ' + result.join(', '))
-            console.info('[悬停工具诊断] ItemStackClass.of 类型=' + (typeof ItemStackClass.of))
-            try {
-                var tag = TagParser.parseTag('{id:"' + itemId + '"}')
-                var viaOf = ItemStackClass.of(tag)
-                console.info('[悬停工具诊断] ItemStack.of 结果=' + String(viaOf) + ' 空=' + String(viaOf.isEmpty()))
-            } catch (eOf) {
-                console.error('[悬停工具诊断] ItemStack.of 失败：' + eOf)
-            }
         } catch (e) {
             console.error('[悬停工具诊断] 失败：' + e)
         }

@@ -350,6 +350,115 @@
     var TYPE_COLOR = ChatFormatting !== null ? ChatFormatting.AQUA : null
 
     /*
+     * ============================================================
+     * 收集进度：当前 / 目标 / 上限
+     *
+     * 上限（与模组图鉴武器大师页一致）：
+     *   模组图鉴那一页的条目就是 WeaponMasterUtil 的
+     *     getSwordList() / getAxeList() / getHoeList() / getPickaxeList()
+     *     / getShovelList() / getProjectileWeaponList() / getArmorList()
+     *     / getWandList() / getSpellBookList() / getSpecialList()
+     *   （MorphScreenNew#getRealItemList 就是这么取的），
+     *   所以直接问模组要，数字必然和图鉴一致，不用自己复刻判定。
+     *   这些方法内部会过滤 WEAPON_BLACKLIST，与图鉴同源。
+     *
+     * 目标：反转阈值
+     *
+     * 当前：该类型已在 nbt_has_used_weapon 里记录的数量，
+     *   用 WeaponMasterUtil.getUsedWeapon(player, 类型对应类) 过滤后取 size，
+     *   与模组自己的计数口径相同。
+     * ============================================================
+     */
+    var GOAL_COUNT = 256
+
+    /*
+     * WeaponType -> 图鉴列表方法名
+     *
+     * 注意枚举常量的名字**不是** SWORD/AXE 这种，而是类名形式
+     * （源码 WeaponMasterUtil$WeaponType）：
+     *
+     *   SwordItem / AxeItem / HoeItem / PickaxeItem / ShovelItem /
+     *   ArmorItem / ProjectileWeaponItem / IWand / ISpellbook
+     *
+     * 共 9 个，没有 SPECIAL —— 图鉴里的"特殊武器"是
+     * NightRavenSkill 那一套（getSpecialList），不在这套判定里，
+     * 本脚本的 EXTRA_WEAPON_IDS 补录也归到它。
+     */
+    var LIST_METHOD_BY_TYPE = {
+        'SwordItem': 'getSwordList',
+        'AxeItem': 'getAxeList',
+        'HoeItem': 'getHoeList',
+        'PickaxeItem': 'getPickaxeList',
+        'ShovelItem': 'getShovelList',
+        'ArmorItem': 'getArmorList',
+        'ProjectileWeaponItem': 'getProjectileWeaponList',
+        'IWand': 'getWandList',
+        'ISpellbook': 'getSpellBookList'
+    }
+
+    /*
+     * 上限缓存：每个类型只问一次模组（要遍历整个物品注册表，不便宜）
+     */
+    var typeMaxCache = {}
+
+    function typeMax(type) {
+        if (type === null || WeaponMasterUtil === null) return -1
+        var key = typeName(type)
+        if (key === null) return -1
+        if (typeMaxCache[key] !== undefined) return typeMaxCache[key]
+
+        var method = LIST_METHOD_BY_TYPE[key]
+        if (method === undefined) {
+            typeMaxCache[key] = -1
+            return -1
+        }
+        var size = -1
+        try {
+            var list = WeaponMasterUtil[method]()
+            if (list !== null && list !== undefined) size = list.size()
+        } catch (e) {
+            console.error('[武器之狐] 取 ' + key + ' 的上限失败：' + e)
+        }
+        typeMaxCache[key] = size
+        return size
+    }
+
+    function typeName(type) {
+        if (type === null) return null
+        try {
+            var n = String(type.name())
+            return n.length > 0 ? n : null
+        } catch (e) {
+            return null
+        }
+    }
+
+    /*
+     * 当前已记录数量（该类型）
+     */
+    function typeCollected(player, type) {
+        if (type === null || WeaponMasterUtil === null) return -1
+        try {
+            return WeaponMasterUtil.getUsedWeapon(player).size()
+        } catch (e) {
+            console.error('[武器之狐] 取已记录装备数失败：' + e)
+            return -1
+        }
+    }
+
+    /*
+     * 组装进度标记，三档：当前 / 目标 / 上限
+     *   §8(§a12§7/§e30§7/§f319§8)
+     * 上限取不到时退化为两档，不显示错误的数字。
+     */
+    function progressText(collected, goal, max) {
+        if (max === null || max === undefined || max < 0) {
+            return ' §8(§a' + collected + '§7/§e' + goal + '§8)'
+        }
+        return ' §8(§a' + collected + '§7/§e' + goal + '§7/§f' + max + '§8)'
+    }
+
+    /*
      * 取"装备类型"文案（剑 / 斧 / 锄 / 镐 / 锹 / 防具 / 远程武器 / 魔杖 / 法术书）。
      *
      * 模组这里有个坑，而且是个真 bug：
@@ -405,11 +514,13 @@
              * 类型标签（武器/法杖…）与物品 ID 保持无悬停。
              */
             var prefix = hoverItem(Component.literal('§a[武器之狐]'), SCRIPT_ITEMS['武器之狐'], null)
+            var weaponType = getModWeaponType(item)
             var message = Component.literal('').append(prefix).append(Component.literal(' §7发现新的装备 §8» §f'))
                 .append(hoverItem(Component.translatable(item.getDescriptionId()), String(stack.getId()), null))
                 .append(Component.literal(' §8['))
-                .append(typeLabel(getModWeaponType(item)))
+                .append(typeLabel(weaponType))
                 .append(Component.literal('§8] §7' + String(stack.getId())))
+                .append(Component.literal(progressText(typeCollected(player, weaponType), GOAL_COUNT, typeMax(weaponType))))
 
             player.tell(message)
         } catch (e) {

@@ -32,8 +32,9 @@ jobs:
       - name: 检出仓库
         uses: actions/checkout@v4
         with:
-          # 需要完整历史，git describe 才能生成 v0.3.1-2-g1a2b3c4 这样的版本号
+          # 需要完整历史和 tag，git describe 才能生成 v0.3.1-2-g1a2b3c4 这样的版本号
           fetch-depth: 0
+          fetch-tags: true
 
       - name: 准备 Python
         uses: actions/setup-python@v5
@@ -64,6 +65,15 @@ jobs:
           files: dist/*.zip
           fail_on_unmatched_files: true
           make_latest: true
+
+      # 让 rolling tag 跟着最新提交走，否则 Release 页面上的「Source code」永远停在旧代码上。
+      # 万一移动失败也不该影响打包发布，所以加了 continue-on-error。
+      - name: 把 rolling tag 移到本次提交
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.tag == '') }}
+        continue-on-error: true
+        run: |
+          git tag -f rolling "$GITHUB_SHA"
+          git push -f origin refs/tags/rolling
 
       - name: 更新最新构建（rolling）
         if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.tag == '') }}

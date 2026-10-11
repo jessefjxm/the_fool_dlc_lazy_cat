@@ -42,7 +42,7 @@ jobs:
           python-version: '3.12'
 
       - name: 打包 zip
-        run: python .github/scripts/build_release.py --label "${{ inputs.tag }}"
+        run: python .github/scripts/build_release.py
 
       - name: 查看包内容
         run: python .github/scripts/build_release.py --list
@@ -92,11 +92,12 @@ jobs:
             ### 下载后怎么用
 
             1. 下载下面的 `the_fool_dlc_lazy_cat.zip` 并解压；
-            2. 里面是一个 `kubejs` 文件夹，覆盖到整合包的版本目录，例如
-               `D:\Games\Minecraft\.minecraft\versions\愚者 0.3.1\`；
+            2. 包里就是全部 `.js` 和 `README.md`（没有多余文件夹层级），把它们**全部**丢进
+               整合包的 `kubejs\server_scripts\`，例如
+               `D:\Games\Minecraft\.minecraft\versions\愚者 0.3.1\kubejs\server_scripts\`；
             3. 进游戏执行 `/reload`（需要管理员权限），或者重新进入存档。
 
-            脚本最终应位于 `kubejs\server_scripts\`，且 `_悬停.js` 必须和其它脚本放在一起。
+            `_悬停.js` 必须和其它脚本放在一起（KubeJS 按文件名排序加载，它要排在前面）。
 
             ---
 

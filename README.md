@@ -55,6 +55,8 @@
 ```
 D:\Games\Minecraft\.minecraft\versions\愚者 0.3.1\kubejs\server_scripts\
 ```
+<img width="1004" height="826" alt="image" src="https://github.com/user-attachments/assets/41061da9-d34c-4cc5-a22e-0b2499b2abcd" />
+
 
 然后执行 `/reload` 命令（如果你是管理员并且在游戏里），或者重新存档、重新开端，脚本就会生效。
 

@@ -8,6 +8,25 @@
 
 ---
 
+## 效果
+
+测试存档，触发一堆统计信息
+<img width="662" height="363" alt="image" src="https://github.com/user-attachments/assets/647c0ca2-42cc-4aa4-a971-82c854387bde" />
+
+鼠标移动到道具名称上能显示遗物信息，方便看效果
+<img width="670" height="448" alt="image" src="https://github.com/user-attachments/assets/7a9e10b1-e777-47db-a96c-1c936e1aa9bc" />
+
+记录目标的文字，鼠标移动上去会有提示
+<img width="757" height="370" alt="image" src="https://github.com/user-attachments/assets/5643031e-c80e-4150-9670-b860aba10773" />
+
+如果目标是道具，则显示道具信息
+<img width="666" height="423" alt="image" src="https://github.com/user-attachments/assets/046f3ac5-683b-4b27-934b-870392367c3e" />
+
+旅行家是七个维度同步记录
+<img width="661" height="435" alt="image" src="https://github.com/user-attachments/assets/287750f6-ce58-4f8f-9696-410b8bf6da44" />
+
+---
+
 ## 下载（不想碰 git 的人看这里）
 
 直接下打包好的压缩包，解压覆盖就能用：

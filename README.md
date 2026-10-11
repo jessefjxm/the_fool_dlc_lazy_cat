@@ -8,6 +8,22 @@
 
 ---
 
+## 下载（不想碰 git 的人看这里）
+
+直接下打包好的压缩包，解压覆盖就能用：
+
+- **最新稳定版**：<https://github.com/jessefjxm/the_fool_dlc_lazy_cat/releases/latest/download/the_fool_dlc_lazy_cat.zip>
+- **最新构建**（每次更新 `main` 后自动打包，可能带还没正式发布的改动）：<https://github.com/jessefjxm/the_fool_dlc_lazy_cat/releases/download/rolling/the_fool_dlc_lazy_cat.zip>
+- 全部版本：<https://github.com/jessefjxm/the_fool_dlc_lazy_cat/releases>
+
+包内结构是 `kubejs\server_scripts\*.js`，所以**解压后直接覆盖到整合包的版本目录**即可，例如
+`D:\Games\Minecraft\.minecraft\versions\愚者 0.3.1\`。压缩包里的 `使用说明.txt` 写的是同样的步骤。
+
+> 打包由 GitHub Actions 自动完成，配置在 [`.github/workflows/release.yml`](.github/workflows/release.yml)：
+> 打 `v*` tag 出正式版，推送到 `main` 自动刷新「最新构建」，两者附件名相同所以下载链接固定不变。
+
+---
+
 ## 用法
 
 把仓库里的脚本丢到整合包的 `kubejs\server_scripts\` 目录下，例如：

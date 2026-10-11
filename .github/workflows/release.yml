@@ -1,0 +1,93 @@
+name: 打包 Release
+
+# 触发方式：
+#   1) 推送 v* tag          -> 创建正式 Release，releases/latest 指向它（固定下载链接）
+#   2) 推送到 main          -> 更新 rolling 预发布，永远指向最新构建
+#   3) Actions 页面手动运行  -> 填 tag 发正式版；留空只刷新「最新构建」
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要发布的正式版 tag（例如 v0.3.2）；留空则只更新「最新构建」'
+        required: false
+        default: ''
+
+# 创建 Release / 上传附件需要写权限
+permissions:
+  contents: write
+
+# rolling 发布要串行更新，避免两次推送同时改同一个 Release
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  bundle:
+    name: 打包并发布
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+        with:
+          # 需要完整历史，git describe 才能生成 v0.3.1-2-g1a2b3c4 这样的版本号
+          fetch-depth: 0
+
+      - name: 准备 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 打包 zip
+        run: python .github/scripts/build_release.py --label "${{ inputs.tag }}"
+
+      - name: 查看包内容
+        run: python .github/scripts/build_release.py --list
+
+      - name: 留存构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: the_fool_dlc_lazy_cat-zip
+          path: dist/*.zip
+          if-no-files-found: error
+
+      - name: 发布正式版（v* tag）
+        if: ${{ startsWith(github.ref, 'refs/tags/v') || inputs.tag != '' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          name: ${{ inputs.tag || github.ref_name }}
+          body_path: .github/release-notes.md
+          generate_release_notes: true
+          files: dist/*.zip
+          fail_on_unmatched_files: true
+          make_latest: true
+
+      - name: 更新最新构建（rolling）
+        if: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.tag == '') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: rolling
+          name: 最新构建（自动打包）
+          prerelease: true
+          make_latest: false
+          files: dist/*.zip
+          fail_on_unmatched_files: true
+          body: |
+            > 这是每次推送到 `main` 后**自动打包**的最新版本，可能包含还没正式发布的改动。
+            > 想要稳定版请到 [Releases](https://github.com/jessefjxm/the_fool_dlc_lazy_cat/releases/latest) 下载。
+
+            ### 下载后怎么用
+
+            1. 下载下面的 `the_fool_dlc_lazy_cat.zip` 并解压；
+            2. 里面是一个 `kubejs` 文件夹，覆盖到整合包的版本目录，例如
+               `D:\Games\Minecraft\.minecraft\versions\愚者 0.3.1\`；
+            3. 进游戏执行 `/reload`（需要管理员权限），或者重新进入存档。
+
+            脚本最终应位于 `kubejs\server_scripts\`，且 `_悬停.js` 必须和其它脚本放在一起。
+
+            ---
+
+            本次构建：`${{ github.sha }}`
